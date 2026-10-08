@@ -1,0 +1,70 @@
+<?php
+
+namespace App\Http\Controllers\Client;
+
+use App\Http\Controllers\Controller;
+use App\Models\Payment;
+use App\Services\Notifier;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+use Illuminate\View\View;
+
+class PaymentController extends Controller
+{
+    public function index(Request $request): View
+    {
+        return view('portal.payments.index', ['payments' => $request->user()->client->payments()->with('contract', 'invoice')->get()]);
+    }
+
+    public function create(Request $request): View
+    {
+        $client = $request->user()->client;
+        $contracts = $client->contracts()->whereIn('status', ['active', 'completed'])->get();
+        $invoices = $client->invoices()->whereIn('status', ['sent', 'partial'])->get();
+        $invoice = $request->filled('invoice') ? $invoices->firstWhere('id', $request->integer('invoice')) : null;
+        $contract = $request->filled('contract') ? $contracts->firstWhere('id', $request->integer('contract')) : $invoice?->contract;
+
+        return view('portal.payments.form', [
+            'contracts' => $contracts,
+            'invoices' => $invoices,
+            'payment' => new Payment(['paid_on' => now(), 'method' => 'bank_transfer', 'contract_id' => $contract?->id, 'invoice_id' => $invoice?->id, 'amount' => $invoice?->balance() ?: $contract?->balance(), 'currency' => $invoice?->currency ?? $contract?->currency ?? config('company.currency.code')]),
+        ]);
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        $client = $request->user()->client;
+        $data = $request->validate([
+            'contract_id' => ['nullable', Rule::exists('contracts', 'id')->where('client_id', $client->id)->whereIn('status', ['approved', 'active', 'completed', 'expired'])],
+            'invoice_id' => ['nullable', Rule::exists('invoices', 'id')->where('client_id', $client->id)->whereIn('status', ['sent', 'partial'])],
+            'amount' => ['required', 'numeric', 'min:0.01', 'max:99999999'],
+            'method' => ['required', 'in:'.implode(',', array_keys(config('company.payment_methods')))],
+            'paid_on' => ['required', 'date', 'before_or_equal:today'],
+            'reference' => ['nullable', 'string', 'max:160'],
+            'note' => ['nullable', 'string', 'max:2000'],
+            'proof' => [Rule::requiredIf(fn () => Payment::methodNeedsProof($request->input('method', ''))), 'nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
+        ], ['proof.required' => 'Bank transfers need a screenshot or PDF of the transfer confirmation.', 'contract_id.required_without' => 'Choose the contract or invoice this payment is for.']);
+
+        if (empty($data['contract_id']) && empty($data['invoice_id'])) {
+            return back()->withErrors(['contract_id' => 'Choose the contract or invoice this payment is for.'])->withInput();
+        }
+        if (! empty($data['invoice_id']) && empty($data['contract_id'])) {
+            $data['contract_id'] = $client->invoices()->find($data['invoice_id'])?->contract_id;
+        }
+        $currency = ! empty($data['invoice_id']) ? $client->invoices()->find($data['invoice_id'])->currency : $client->contracts()->find($data['contract_id'])->currency;
+        unset($data['proof']);
+
+        $payment = $client->payments()->create($data + ['currency' => $currency, 'status' => 'pending', 'submitted_by' => $request->user()->id, 'proof_path' => $request->hasFile('proof') ? $request->file('proof')->store('payments', 'local') : null]);
+        app(Notifier::class)->paymentSubmitted($payment->load('client.users', 'invoice'));
+
+        return redirect()->route('portal.payments.show', $payment)->with('saved', 'Payment submitted. We will verify it and update your balance, usually within one working day.');
+    }
+
+    public function show(Request $request, Payment $payment): View
+    {
+        $this->authorizeView($payment);
+
+        return view('portal.payments.show', ['payment' => $payment->load('contract', 'invoice')]);
+    }
+}

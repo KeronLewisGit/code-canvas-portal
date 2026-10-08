@@ -1,0 +1,25 @@
+/* Printable documents (quotations, invoices, contracts). Paged.js lays the .doc flow into US Letter pages,
+   on screen and in print, so breaks, running footers and page counts are the same in both. */
+@page { size: Letter; margin: 0.55in 0.65in 0.7in; }
+
+.doc { font-family: 'Nunito', system-ui, sans-serif; font-size: 10.5pt; line-height: 1.45; color: #212121; }
+.doc h1, .doc h2, .doc h3 { font-family: 'Rubik', 'Nunito', system-ui, sans-serif; break-after: avoid; }
+.doc .doc-title { font-size: 28pt; font-weight: 500; letter-spacing: 0.02em; line-height: 1; }
+.doc .doc-table { width: 100%; border-collapse: collapse; }
+.doc .doc-table th { background: #212121; color: white; font-weight: 600; font-size: 9pt; text-align: left; padding: 7px 8px; }
+.doc .doc-table td { padding: 8px; border-bottom: 1px solid #e3e3e3; vertical-align: top; }
+.doc .doc-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.doc .doc-table thead { display: table-header-group; }
+.doc .doc-table tr, .doc .avoid-break { break-inside: avoid; }
+.doc .totals { margin-left: auto; width: 3.2in; }
+.doc .totals div { display: flex; justify-content: space-between; padding: 4px 8px; }
+.doc .totals .grand { font-weight: 700; border-top: 1px solid #212121; margin-top: 2px; }
+.doc .totals .due { background: #f4f4f4; font-weight: 700; margin-top: 4px; }
+.doc .muted { color: #4e4b66; }
+.doc .small { font-size: 9pt; }
+.doc .eyebrow { font-size: 8.5pt; letter-spacing: 0.12em; text-transform: uppercase; color: #4e4b66; font-weight: 700; }
+.doc .doc-terms { break-before: page; }
+.doc .doc-terms h3 { font-size: 10pt; font-weight: 700; margin: 10px 0 2px; }
+.doc .doc-terms p { font-size: 9.5pt; margin: 0; }
+.doc .doc-terms > div { break-inside: avoid; }
+
