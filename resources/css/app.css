@@ -1,0 +1,114 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../../app/**/*.php';
+@source '../../config/company.php';
+
+@theme {
+    --font-sans: 'Nunito', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'Rubik', 'Nunito', ui-sans-serif, system-ui, sans-serif;
+
+    /* Code Canvas brand: codecanvastt.com blue #1863DC, near-black #212121, isometric mark purple */
+    --color-ink: #212121;
+    --color-ink-soft: #333f63;
+    --color-paper: #f4f4f4;
+    --color-line: #e3e3e3;          /* decorative dividers and card edges */
+    --color-edge: #80808c;          /* form control borders: 3.9:1 on white (WCAG 1.4.11) */
+    --color-muted: #4e4b66;         /* 8.3:1 on white */
+    --color-placeholder: #6b6b7b;   /* 5.2:1 on white */
+    --color-brand-50: #eaf2fd;
+    --color-brand-100: #d1e2fa;
+    --color-brand-200: #a8c8f5;
+    --color-brand-300: #78a9ee;
+    --color-brand-400: #4487e6;
+    --color-brand-500: #1863dc;     /* white text 5.4:1 */
+    --color-brand-600: #1355c0;
+    --color-brand-700: #0056a7;     /* link colour 7.3:1 */
+    --color-brand-800: #0a4486;
+    --color-brand-900: #0c3566;
+    --color-sky-300: #8fd3f4;
+    --color-sky-400: #4fb3e8;
+    --color-plum-400: #8a6db8;
+    --color-plum-500: #6d4ea8;
+    --color-plum-600: #58398f;
+    --color-amber-400: #fbbf24;
+    --color-amber-500: #f59e0b;
+}
+
+@layer base {
+    html { @apply antialiased text-ink; scroll-behavior: smooth; }
+    body { @apply bg-paper font-sans text-base leading-relaxed; }
+    h1, h2, h3 { @apply font-display font-semibold tracking-tight; }
+    a { @apply transition; }
+    /* Keyboard users always get a visible focus ring (WCAG 2.4.7 / 2.4.11). */
+    :focus-visible { outline: 3px solid var(--color-brand-400); outline-offset: 2px; border-radius: 4px; }
+    input[type='checkbox'], input[type='radio'] { accent-color: var(--color-brand-500); }
+    [x-cloak] { display: none !important; }
+    @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+    }
+}
+
+@layer components {
+    .wrap { @apply mx-auto w-full max-w-6xl px-4 sm:px-6; }
+    .card { @apply rounded-2xl bg-white p-5 shadow-sm ring-1 ring-line sm:p-6; }
+    .eyebrow { @apply text-[12px] font-bold tracking-[0.14em] text-muted uppercase; }
+    .h-page { @apply text-2xl font-semibold tracking-tight sm:text-3xl; }
+
+    /* Buttons: 44px minimum target (WCAG 2.5.5 / Material), one primary per view. */
+    .btn { @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-200 disabled:cursor-not-allowed disabled:opacity-60; }
+    .btn-primary { @apply bg-brand-500 text-white hover:bg-brand-600 active:bg-brand-700; }
+    .btn-dark { @apply bg-ink text-white hover:bg-ink-soft; }
+    .btn-light { @apply border border-edge bg-white text-ink hover:bg-paper; }
+    .btn-danger { @apply bg-red-700 text-white hover:bg-red-800; }
+    .btn-sm { @apply min-h-9 px-3.5 py-1.5 text-xs; }
+    .btn-link-danger { @apply inline-flex min-h-9 cursor-pointer items-center text-sm font-semibold text-red-700 underline-offset-2 hover:underline; }
+
+    .label { @apply mb-1.5 block text-sm font-semibold text-ink; }
+    .input { @apply block min-h-11 w-full rounded-xl border border-edge bg-white px-3.5 py-2.5 text-base text-ink placeholder:text-placeholder focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus:outline-none disabled:text-muted sm:text-sm; }
+    /* Native selects ignore box-shadow in Safari, so they get the same border plus our own arrow. */
+    select.input { @apply cursor-pointer appearance-none bg-no-repeat pr-10; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%234e4b66' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E"); background-position: right 0.75rem center; background-size: 1.1rem; }
+    select.input:disabled { @apply cursor-not-allowed; }
+    textarea.input { @apply min-h-20; }
+    .file-input { @apply block w-full cursor-pointer rounded-xl text-sm text-muted file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-brand-50 file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-brand-800 hover:file:bg-brand-100; }
+    .hint { @apply mt-1.5 text-sm text-muted; }
+    .error { @apply mt-1.5 text-sm font-semibold text-red-700; }
+
+    .chip { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap; }
+    .tone-slate { @apply bg-slate-100 text-slate-700; }
+    .tone-blue { @apply bg-brand-100 text-brand-800; }
+    .tone-green { @apply bg-emerald-100 text-emerald-800; }
+    .tone-amber { @apply bg-amber-100 text-amber-800; }
+    .tone-red { @apply bg-red-100 text-red-800; }
+
+    .table { @apply w-full text-left text-sm; }
+    .table th { @apply border-b border-line px-3 py-2.5 text-[12px] font-bold tracking-[0.1em] text-muted uppercase; }
+    .table td { @apply border-b border-line/70 px-3 py-3 align-middle; }
+    .table tr:last-child td { @apply border-b-0; }
+    .table .num { @apply text-right tabular-nums; }
+    /* Links are never colour-only: underline on hover and focus. */
+    .table a:not(.btn), .card p a:not(.btn), .card li a:not(.btn), .card dd a:not(.btn) { @apply underline-offset-2 hover:underline focus-visible:underline; }
+
+    .nav-link { @apply flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-[15px] font-semibold text-white/80 hover:bg-white/10 hover:text-white; }
+    .nav-link.active { @apply bg-white/15 text-white; }
+    .nav-link svg { @apply size-5 shrink-0 opacity-80; }
+    .sidebar { background: linear-gradient(180deg, #212121 0%, #1a2238 100%); }
+
+    .skip-link { @apply sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-xl focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-ink focus:shadow-lg; }
+
+    .stat { @apply rounded-2xl bg-white p-5 ring-1 ring-line; }
+    .stat-value { @apply mt-1 text-2xl font-semibold tracking-tight tabular-nums; }
+    .prose-doc p { @apply mb-3 leading-relaxed; }
+    .callout { @apply flex flex-wrap items-center justify-between gap-3 rounded-2xl border-l-4 border-brand-500 bg-white p-4 text-sm ring-1 ring-line; }
+}
+
+/* Paged.js output (documents): pages shown as sheets on screen, plain in print. */
+.pagedjs_pages { display: flex; flex-direction: column; align-items: center; gap: 0.4in; padding: 0.4in 0; }
+.pagedjs_page { background: white; box-shadow: 0 6px 24px rgb(0 0 0 / 0.18); }
+@media print {
+    .no-print { display: none !important; }
+    html, body { background: white !important; }
+    .pagedjs_pages { display: block; padding: 0; }
+    .pagedjs_page { box-shadow: none; }
+}
