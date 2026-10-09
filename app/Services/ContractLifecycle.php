@@ -63,10 +63,11 @@ class ContractLifecycle
         $contract->fill($attributes);
         $after = $contract->materialSnapshot();
         $diff = Audit::diff($before, $after);
+        $other = array_values(array_diff(array_keys($contract->getDirty()), Contract::MATERIAL_FIELDS));
         if ($diff === [] || $contract->status === 'draft') {
             $contract->save();
-            if ($diff !== []) {
-                Audit::log($contract, 'updated', $diff);
+            if ($diff !== [] || $other !== []) {
+                Audit::log($contract, 'updated', $diff + ($other ? ['fields' => $other] : []));
             }
 
             return $contract;
@@ -74,7 +75,7 @@ class ContractLifecycle
         $contract->versions()->create(['version' => $contract->version, 'snapshot' => $before, 'reason' => $reason, 'created_by' => $by?->id, 'created_at' => now()]);
         $contract->version = $contract->version + 1;
         $contract->save();
-        Audit::log($contract, 'amended', $diff + ['version' => $contract->version, 'reason' => $reason]);
+        Audit::log($contract, 'amended', $diff + ['version' => $contract->version, 'reason' => $reason] + ($other ? ['fields' => $other] : []));
 
         return $contract;
     }

@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Validator;
 /** Creates or resets your admin login. Safe on production, unlike db:seed. */
 class CreateAdminCommand extends Command
 {
-    protected $signature = 'portal:admin {--email= : Login email (defaults to the company email)} {--name=Keron Lewis : Display name} {--password= : Password (prompted if omitted)}';
+    protected $signature = 'portal:admin {--email= : Login email (defaults to the company email)} {--name=Keron Lewis : Display name} {--password= : Password (prompted if omitted; prefer the prompt so it stays out of shell history)} {--force : Promote an existing client login to admin}';
 
     protected $description = 'Create or update the Code Canvas admin account';
 
@@ -24,6 +24,14 @@ class CreateAdminCommand extends Command
             foreach ($validator->errors()->all() as $error) {
                 $this->error($error);
             }
+
+            return self::FAILURE;
+        }
+
+        $existing = User::where('email', $email)->first();
+        if ($existing && $existing->role !== 'admin' && ! $this->option('force')) {
+            // A typo in --email must not quietly turn a client's portal login into a full admin account.
+            $this->error($email.' is a client login. Re-run with --force if you really want to make it an admin.');
 
             return self::FAILURE;
         }

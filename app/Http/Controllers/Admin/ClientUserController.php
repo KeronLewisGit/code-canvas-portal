@@ -20,7 +20,7 @@ class ClientUserController extends Controller
             'email' => ['required', 'email', 'max:160', Rule::unique('users', 'email')],
             'password' => ['nullable', 'string', 'min:10', 'max:100'],
         ]);
-        $password = $data['password'] ?: Str::password(14, symbols: false);
+        $password = ($data['password'] ?? null) ?: Str::password(14, symbols: false);
 
         $client->users()->create(['name' => $data['name'], 'email' => $data['email'], 'password' => $password, 'role' => 'client']);
 

@@ -25,6 +25,7 @@
         <button onclick="window.print()" class="btn btn-primary btn-sm">Print or save as PDF</button>
     </div>
     @endunless
+    <noscript><style>#doc-source[hidden] { display: block; }</style></noscript>
     <div id="doc-source" hidden>{{ $slot }}</div>
     <main id="doc-stage" data-css="{{ Vite::asset('resources/css/document.css') }}" class="overflow-x-auto"></main>
 </body>

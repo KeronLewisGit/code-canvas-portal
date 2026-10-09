@@ -10,6 +10,7 @@ use App\Models\Quotation;
 use App\Models\User;
 use App\Notifications\PortalMail;
 use App\Support\Audit;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 
 /**
@@ -77,53 +78,76 @@ class Notifier
         }
     }
 
-    /** Manual or scheduled nudge. Stamps reminded_at and writes to the audit log. */
-    public function remind(Invoice|Quotation|Contract $doc, ?User $by = null): string
+    /** Manual or scheduled nudge. Stamps reminded_at and writes to the audit log only when the email actually went out; null otherwise. */
+    public function remind(Invoice|Quotation|Contract $doc, ?User $by = null): ?string
     {
         [$subject, $lines, $label, $url] = match (true) {
             $doc instanceof Invoice => ['Reminder: invoice '.$doc->reference.' has '.money($doc->balance(), $doc->currency).' outstanding', ['A friendly reminder that invoice '.$doc->reference.' ("'.$doc->title.'") has a balance of '.money($doc->balance(), $doc->currency).($doc->due_date ? (Invoice::dateHasPassed($doc->due_date) ? ', which was due on ' : ', due on ').$doc->due_date->format('j F Y') : '').'.', 'Pay by bank transfer, cheque or cash and submit the payment in your portal so we can confirm it. If you have already paid, please submit the details and ignore this reminder.'], 'View and pay the invoice', route('portal.invoices.show', $doc)],
             $doc instanceof Quotation => ['Reminder: quotation '.$doc->reference.' is waiting for your answer', ['Quotation '.$doc->reference.' ("'.$doc->title.'", '.money($doc->total, $doc->currency).') is still open'.($doc->valid_until ? ' and is valid until '.$doc->valid_until->format('j F Y') : '').'.', 'Accept or decline it in your portal, or reply if you would like any changes.'], 'Review the quotation', route('portal.quotations.show', $doc)],
             default => ['Reminder: contract '.$doc->reference.' is waiting for your signature', ['The agreement "'.$doc->title.'" is ready to sign in your portal. Work starts once it is signed and the deposit is received.'], 'Read and sign the contract', route('portal.contracts.show', $doc)],
         };
-        $this->client($doc->client, new PortalMail($subject, $lines, $label, $url));
+        if (! $this->client($doc->client, new PortalMail($subject, $lines, $label, $url))) {
+            return null;
+        }
         $doc->forceFill(['reminded_at' => now()])->save();
         Audit::log($doc, 'reminder_sent', ['by' => $by?->name ?? 'scheduler']);
 
         return $subject;
     }
 
-    private function client(Client $client, PortalMail $mail): void
+    /** True when the message was handed to the mailer; false when the client has nobody to email or sending failed. */
+    private function client(Client $client, PortalMail $mail): bool
     {
-        $this->deliver(function () use ($client, $mail) {
+        return $this->deliver(function () use ($client, $mail) {
             $users = $client->users;
             if ($users->isNotEmpty()) {
                 Notification::send($users, $mail);
-            } elseif ($client->email) {
-                Notification::route('mail', [$client->email => $client->contact_name])->notify($mail);
-            } elseif (request()->hasSession()) {
-                session()->flash('warning', $client->company.' has no email address or portal login on file, so "'.$mail->subject.'" could not be sent. Add one on the client page.');
+
+                return true;
             }
+            if ($client->email) {
+                Notification::route('mail', [$client->email => $client->contact_name])->notify($mail);
+
+                return true;
+            }
+            Log::warning('Email not sent: client has no address or portal login.', ['client_id' => $client->id, 'subject' => $mail->subject]);
+            $this->warn($client->company.' has no email address or portal login on file, so "'.$mail->subject.'" could not be sent. Add one on the client page.');
+
+            return false;
         }, $mail);
     }
 
-    private function admins(PortalMail $mail): void
+    private function admins(PortalMail $mail): bool
     {
-        $this->deliver(fn () => Notification::send(User::where('role', 'admin')->get(), $mail), $mail);
+        return $this->deliver(function () use ($mail) {
+            Notification::send(User::where('role', 'admin')->get(), $mail);
+
+            return true;
+        }, $mail);
     }
 
     /**
-     * With the sync queue an SMTP problem would surface as a 500 after the record was already saved.
-     * Instead the error is reported, the action stands, and the admin sees a warning banner.
+     * Mail is sent synchronously (QUEUE_CONNECTION=sync), so an SMTP problem would otherwise surface as a 500
+     * after the record was already saved. Instead the error is reported, the action stands, and an admin
+     * sees a warning banner. With a real queue driver failures land in failed_jobs instead.
      */
-    private function deliver(callable $send, PortalMail $mail): void
+    private function deliver(callable $send, PortalMail $mail): bool
     {
         try {
-            $send();
+            return (bool) $send();
         } catch (\Throwable $e) {
             report($e);
-            if (request()->hasSession()) {
-                session()->flash('warning', 'Saved, but the email "'.$mail->subject.'" could not be sent: '.$e->getMessage().' Check the MAIL settings.');
-            }
+            $this->warn('Saved, but the email "'.$mail->subject.'" could not be sent: '.$e->getMessage().' Check the MAIL settings.');
+
+            return false;
+        }
+    }
+
+    /** Delivery problems are shown to admins only; a client must never see SMTP internals or admin-side mail. */
+    private function warn(string $message): void
+    {
+        if (request()->hasSession() && request()->user()?->isAdmin()) {
+            session()->flash('warning', $message);
         }
     }
 }

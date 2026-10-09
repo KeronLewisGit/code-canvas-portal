@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password as PasswordRule;
@@ -54,7 +54,9 @@ class PasswordController extends Controller
     public function change(Request $request): RedirectResponse
     {
         $data = $request->validate(['current_password' => ['required', 'current_password'], 'password' => ['required', 'confirmed', PasswordRule::min(10)]]);
-        $request->user()->forceFill(['password' => Hash::make($data['password'])])->save();
+        $request->user()->forceFill(['password' => $data['password']])->save(); // the User model hashes it
+        Auth::logoutOtherDevices($data['password']); // rotates the remember-me token so old "remember me" cookies stop working
+        $request->session()->regenerate();
 
         return back()->with('saved', 'Password changed.');
     }

@@ -3,7 +3,7 @@
         <x-slot:actions>
             <a href="{{ route('documents.contract', $contract) }}" target="_blank" class="btn btn-light">{{ $contract->isSigned() ? 'Download signed contract' : 'View contract PDF' }}</a>
             @if ($contract->awaitingSignature())<a href="{{ route('portal.contracts.sign', $contract) }}" class="btn btn-dark">Sign contract</a>@endif
-            @if ($contract->balance() > 0 && $contract->status !== 'cancelled')<a href="{{ route('portal.payments.create', ['contract' => $contract->id]) }}" class="btn btn-primary">Submit a payment</a>@endif
+            @if ($contract->acceptsPayments())<a href="{{ route('portal.payments.create', ['contract' => $contract->id]) }}" class="btn btn-primary">Submit a payment</a>@endif
         </x-slot:actions>
     </x-page>
     @if ($contract->awaitingSignature())<div class="callout mb-6"><p><span class="font-semibold">This contract is waiting for your signature.</span> Read it, then sign in the portal in under a minute.</p><a href="{{ route('portal.contracts.sign', $contract) }}" class="btn btn-primary">Sign now</a></div>@endif

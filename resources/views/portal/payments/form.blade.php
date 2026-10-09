@@ -21,11 +21,11 @@
                 </div>
             </x-field>
             <x-field label="Reference" name="reference" class="sm:col-span-2" hint="Transfer reference, cheque number, or who you handed the cash to."><input id="reference" name="reference" value="{{ old('reference') }}" class="input"></x-field>
-            <div class="sm:col-span-2" x-show="proofRequired" x-cloak>
-                <x-field label="Screenshot or PDF of the transfer" name="proof" required hint="Required for bank transfers. JPG, PNG, WebP or PDF, up to 10 MB."><input id="proof" name="proof" type="file" accept=".pdf,image/*" :required="proofRequired" class="file-input"></x-field>
-            </div>
-            <div class="sm:col-span-2" x-show="!proofRequired">
-                <x-field label="Proof (optional)" name="proof_optional" hint="A photo of the cheque or receipt helps us verify faster."><input name="proof" type="file" accept=".pdf,image/*" class="file-input" :disabled="proofRequired"></x-field>
+            <div class="sm:col-span-2">
+                <label for="proof" class="label"><span x-text="proofRequired ? 'Screenshot or PDF of the transfer' : 'Proof (optional)'">Proof</span><span x-show="proofRequired" class="text-red-700" aria-hidden="true"> *</span></label>
+                <input id="proof" name="proof" type="file" accept=".pdf,image/*" :required="proofRequired" class="file-input">
+                <p id="proof-hint" class="hint" x-text="(proofRequired ? 'Required for bank transfers. ' : 'A photo of the cheque or receipt helps us verify faster. ') + 'JPG, PNG, WebP or PDF, up to 10 MB.'">JPG, PNG, WebP or PDF, up to 10 MB.</p>
+                @error('proof')<p id="proof-error" class="error" role="alert">{{ $message }}</p>@enderror
             </div>
             <x-field label="Anything we should know?" name="note" class="sm:col-span-2"><textarea id="note" name="note" rows="2" class="input">{{ old('note') }}</textarea></x-field>
             <div class="flex gap-2 sm:col-span-2"><button class="btn btn-primary">Submit payment</button><a href="{{ route('portal.payments.index') }}" class="btn btn-light">Cancel</a></div>

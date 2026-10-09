@@ -3,8 +3,8 @@
 namespace App\Models;
 
 use App\Models\Concerns\DateRules;
+use App\Models\Concerns\HasReference;
 use App\Services\ContractFinance;
-use App\Support\Reference;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -14,66 +14,108 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 
+/**
+ * @property int $id
+ * @property string $reference
+ * @property int $client_id
+ * @property string $title
+ * @property string $type
+ * @property Carbon $start_date
+ * @property Carbon|null $end_date
+ * @property string $amount
+ * @property string $billing_cycle
+ * @property string $currency
+ * @property string $status
+ * @property string|null $scope
+ * @property string|null $file_path
+ * @property array<string, string>|null $standard_terms
+ * @property Carbon|null $signed_at
+ * @property string|null $signature_path
+ * @property string|null $signed_name
+ * @property string|null $signed_ip
+ * @property int|null $signed_by
+ * @property Carbon|null $sent_for_signature_at
+ * @property int $payment_terms_days
+ * @property int|null $notice_period_days
+ * @property bool $auto_renew
+ * @property int|null $renewal_of_id
+ * @property string|null $client_signatory
+ * @property string|null $company_signatory
+ * @property bool $confidential
+ * @property int $version
+ * @property Carbon|null $approved_at
+ * @property int|null $approved_by
+ * @property Carbon|null $activated_at
+ * @property Carbon|null $terminated_at
+ * @property string|null $termination_reason
+ * @property Carbon|null $reminded_at
+ * @property-read Client $client
+ */
 #[Fillable(['reference', 'client_id', 'title', 'type', 'start_date', 'end_date', 'amount', 'billing_cycle', 'currency', 'status', 'scope', 'terms', 'file_path', 'standard_terms', 'signed_at', 'signature_path', 'signed_name', 'signed_ip', 'signed_by', 'sent_for_signature_at', 'payment_terms_days', 'notice_period_days', 'auto_renew', 'renewal_of_id', 'client_signatory', 'company_signatory', 'confidential', 'version', 'approved_at', 'approved_by', 'activated_at', 'terminated_at', 'termination_reason', 'reminded_at'])]
 class Contract extends Model
 {
-    use DateRules;
+    use DateRules, HasReference;
+
+    /** Statuses a client may submit a payment against (a deposit on an approved contract, or a balance later). */
+    public const PAYABLE_STATUSES = ['approved', 'active', 'completed', 'expired'];
 
     /** Mirror the database defaults so a freshly created model behaves like a reloaded one. */
     protected $attributes = ['status' => 'draft', 'billing_cycle' => 'one_time', 'currency' => 'TTD', 'payment_terms_days' => 14, 'auto_renew' => false, 'confidential' => false, 'version' => 1];
-
-    protected static function booted(): void
-    {
-        static::creating(function (Contract $contract) {
-            $contract->reference ??= Reference::next('contract', static::class);
-        });
-    }
 
     protected function casts(): array
     {
         return ['start_date' => 'date', 'end_date' => 'date', 'signed_at' => 'datetime', 'sent_for_signature_at' => 'datetime', 'approved_at' => 'datetime', 'activated_at' => 'datetime', 'terminated_at' => 'datetime', 'reminded_at' => 'datetime', 'auto_renew' => 'boolean', 'confidential' => 'boolean', 'standard_terms' => 'array', 'amount' => 'decimal:2'];
     }
 
+    /** @return BelongsTo<Client, $this> */
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
     }
 
+    /** @return HasMany<Invoice, $this> */
     public function invoices(): HasMany
     {
         return $this->hasMany(Invoice::class)->latest('issue_date');
     }
 
+    /** @return HasMany<Quotation, $this> */
     public function quotations(): HasMany
     {
         return $this->hasMany(Quotation::class);
     }
 
+    /** @return HasMany<Payment, $this> */
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class)->latest('paid_on');
     }
 
+    /** @return HasMany<ContractVersion, $this> */
     public function versions(): HasMany
     {
         return $this->hasMany(ContractVersion::class)->orderByDesc('version');
     }
 
+    /** @return MorphMany<ActivityLog, $this> */
     public function activity(): MorphMany
     {
         return $this->morphMany(ActivityLog::class, 'subject')->latest('created_at');
     }
 
+    /** @return BelongsTo<Contract, $this> */
     public function renewalOf(): BelongsTo
     {
         return $this->belongsTo(Contract::class, 'renewal_of_id');
     }
 
+    /** @return HasMany<Contract, $this> */
     public function renewals(): HasMany
     {
         return $this->hasMany(Contract::class, 'renewal_of_id');
     }
 
+    /** @return BelongsTo<User, $this> */
     public function approver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
@@ -135,7 +177,7 @@ class Contract extends Model
      */
     public function standardTerms(): array
     {
-        if ($this->standard_terms) {
+        if ($this->standard_terms !== null) {
             return $this->standard_terms;
         }
 
@@ -188,7 +230,13 @@ class Contract extends Model
 
     public function cycle(): array
     {
-        return config("company.billing_cycles.{$this->billing_cycle}", config('company.billing_cycles.one_time'));
+        $cycle = config("company.billing_cycles.{$this->billing_cycle}");
+        if (! is_array($cycle)) {
+            // Falling back to one_time here would make the forecast loop spin forever and the cycle maths divide by zero.
+            throw new \UnexpectedValueException("Unknown billing cycle [{$this->billing_cycle}] on contract {$this->reference}.");
+        }
+
+        return $cycle;
     }
 
     public function cycleName(): string
@@ -198,7 +246,7 @@ class Contract extends Model
 
     public function isRecurring(): bool
     {
-        return $this->billing_cycle !== 'one_time' && $this->billing_cycle !== null;
+        return $this->billing_cycle !== 'one_time';
     }
 
     /** "TT$600.00 / month" for recurring contracts, plain amount otherwise. */
@@ -225,7 +273,7 @@ class Contract extends Model
         }
         $cycle = $this->cycle();
         if ($cycle['days']) {
-            return intdiv($start->diffInDays($until), $cycle['days']) + 1;
+            return intdiv((int) $start->diffInDays($until), $cycle['days']) + 1;
         }
 
         return intdiv((int) $start->diffInMonths($until), $cycle['months']) + 1;
@@ -294,11 +342,7 @@ class Contract extends Model
         };
     }
 
-    public function isPaid(): bool
-    {
-        return $this->paymentState() === 'paid';
-    }
-
+    /** @return BelongsTo<User, $this> */
     public function signer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'signed_by');
@@ -313,6 +357,11 @@ class Contract extends Model
     public function isSignedInPortal(): bool
     {
         return $this->signature_path !== null;
+    }
+
+    public function acceptsPayments(): bool
+    {
+        return in_array($this->status, self::PAYABLE_STATUSES) && $this->balance() > 0;
     }
 
     /** Clients can sign once the contract is sent for signature and not yet signed. */

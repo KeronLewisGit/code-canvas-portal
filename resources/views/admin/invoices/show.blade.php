@@ -22,7 +22,7 @@
                     <div><dt class="eyebrow">Balance</dt><dd class="font-bold tabular-nums">{{ money($invoice->balance(), $invoice->currency) }}</dd></div>
                     <div><dt class="eyebrow">Due</dt><dd>{{ $invoice->due_date?->format('j M Y') ?? '—' }}</dd></div>
                 </dl>
-                <form method="post" action="{{ route('admin.invoices.status', $invoice) }}" class="mt-4 flex gap-2">@csrf @method('patch')
+                <form method="post" action="{{ route('admin.invoices.status', $invoice) }}" class="mt-4 flex gap-2" onsubmit="return this.status.value !== 'cancelled' || confirm('Cancel this invoice?')">@csrf @method('patch')
                     <select name="status" class="input"><option value="draft" @selected($invoice->status === 'draft')>Draft</option><option value="sent" @selected(in_array($invoice->status, ['sent', 'partial']))>Sent</option><option value="paid" @selected($invoice->status === 'paid')>Paid (manual)</option><option value="cancelled" @selected($invoice->status === 'cancelled')>Cancelled</option></select>
                     <button class="btn btn-light">Update</button>
                 </form>

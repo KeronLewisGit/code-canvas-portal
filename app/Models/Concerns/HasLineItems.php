@@ -13,6 +13,7 @@ trait HasLineItems
         static::deleting(fn ($model) => $model->items()->delete());
     }
 
+    /** @return MorphMany<LineItem, $this> */
     public function items(): MorphMany
     {
         return $this->morphMany(LineItem::class, 'itemable')->orderBy('sort');
@@ -39,8 +40,8 @@ trait HasLineItems
 
     public function recalculate(): void
     {
-        $subtotal = $this->items()->get()->sum(fn (LineItem $i) => $i->total());
+        $subtotal = round($this->items()->get()->sum(fn (LineItem $i) => $i->total()), 2);
         $tax = round($subtotal * ((float) $this->tax_rate / 100), 2);
-        $this->forceFill(['subtotal' => $subtotal, 'tax_amount' => $tax, 'total' => $subtotal + $tax])->save();
+        $this->forceFill(['subtotal' => $subtotal, 'tax_amount' => $tax, 'total' => round($subtotal + $tax, 2)])->save();
     }
 }

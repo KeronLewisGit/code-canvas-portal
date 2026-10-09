@@ -29,7 +29,7 @@
                         <li class="flex items-center justify-between gap-2 rounded-xl bg-paper px-3 py-2">
                             <span><span class="font-semibold">{{ $u->name }}</span><span class="block text-xs text-muted">{{ $u->email }}</span></span>
                             <span class="flex gap-1">
-                                <form method="post" action="{{ route('admin.clients.users.update', [$client, $u]) }}">@csrf @method('patch')<button class="btn btn-light btn-sm">New password</button></form>
+                                <form method="post" action="{{ route('admin.clients.users.update', [$client, $u]) }}" onsubmit="return confirm('Generate a new password for this login? The old one stops working immediately.')">@csrf @method('patch')<button class="btn btn-light btn-sm">New password</button></form>
                                 <form method="post" action="{{ route('admin.clients.users.destroy', [$client, $u]) }}" onsubmit="return confirm('Remove this login?')">@csrf @method('delete')<button class="btn btn-light btn-sm text-red-700">Remove login</button></form>
                             </span>
                         </li>

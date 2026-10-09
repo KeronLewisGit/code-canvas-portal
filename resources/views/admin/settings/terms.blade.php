@@ -4,7 +4,7 @@
     </x-page>
 
     <div class="mb-6 grid gap-6 lg:grid-cols-3">
-        <form method="post" action="{{ route('admin.settings.rates') }}" class="card space-y-4 text-sm" onsubmit="return true">
+        <form method="post" action="{{ route('admin.settings.rates') }}" class="card space-y-4 text-sm">
             @csrf @method('put')
             <h2 class="text-lg">Rates used in the terms</h2>
             <x-field label="Deposit before work starts" name="deposit_percent" required hint="Fills {deposit} in the contract terms."><div class="flex items-center gap-2"><input id="deposit_percent" name="deposit_percent" type="number" inputmode="decimal" step="1" min="0" max="100" value="{{ old('deposit_percent', $deposit) }}" required class="input max-w-28"><span class="text-muted">%</span></div></x-field>
@@ -23,7 +23,7 @@
     </div>
 
     @foreach ($groups as $group)
-        <form method="post" action="{{ route('admin.settings.terms.update') }}" class="card mb-6" x-data="clauseList(@js($group['clauses']))">
+        <form method="post" action="{{ route('admin.settings.terms.update') }}" class="card mb-6" x-data="clauseList(@js(old('group') === $group['key'] ? array_values(old('clauses', [])) : $group['clauses']))">
             @csrf @method('put')
             <input type="hidden" name="group" value="{{ $group['key'] }}">
             <div class="flex flex-wrap items-center justify-between gap-3">

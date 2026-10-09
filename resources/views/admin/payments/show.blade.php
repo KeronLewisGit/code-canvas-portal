@@ -40,11 +40,11 @@
                     <p class="mt-1 text-muted">Made a mistake? You can flip the decision.</p>
                     <div class="mt-4 flex gap-2">
                         @if ($payment->status === 'rejected')<form method="post" action="{{ route('admin.payments.verify', $payment) }}">@csrf @method('patch')<button class="btn btn-light btn-sm">Verify instead</button></form>@endif
-                        @if ($payment->status === 'verified')<form method="post" action="{{ route('admin.payments.reject', $payment) }}">@csrf @method('patch')<input type="hidden" name="rejection_reason" value="Reversed by {{ config('company.short') }}."><button class="btn btn-light btn-sm text-red-700">Reverse verification</button></form>@endif
+                        @if ($payment->status === 'verified')<form method="post" action="{{ route('admin.payments.reject', $payment) }}" onsubmit="return confirm('Reverse this verification? The payment becomes rejected and the client is emailed.')">@csrf @method('patch')<input type="hidden" name="rejection_reason" value="Reversed by {{ config('company.short') }}."><button class="btn btn-light btn-sm text-red-700">Reverse verification</button></form>@endif
                     </div>
                 </section>
             @endif
-            <form method="post" action="{{ route('admin.payments.destroy', $payment) }}" onsubmit="return confirm('Delete this payment record?')" class="text-right">@csrf @method('delete')<button class="btn-link-danger">Delete payment</button></form>
+            @if ($payment->status !== 'verified')<form method="post" action="{{ route('admin.payments.destroy', $payment) }}" onsubmit="return confirm('Delete this payment record?')" class="text-right">@csrf @method('delete')<button class="btn-link-danger">Delete payment</button></form>@endif
         </div>
     </div>
 </x-layout>

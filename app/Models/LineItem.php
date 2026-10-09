@@ -6,6 +6,13 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
+/**
+ * @property int $id
+ * @property string $description
+ * @property string $quantity
+ * @property string $unit_price
+ * @property int $sort
+ */
 #[Fillable(['description', 'quantity', 'unit_price', 'sort'])]
 class LineItem extends Model
 {

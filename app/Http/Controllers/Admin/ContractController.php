@@ -11,6 +11,7 @@ use App\Support\Audit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
@@ -40,9 +41,14 @@ class ContractController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $contract = Contract::create($this->validated($request));
-        $this->storeFile($request, $contract);
-        Audit::log($contract, 'created', ['status' => $contract->status]);
+        $data = $this->validated($request);
+        $contract = DB::transaction(function () use ($request, $data) {
+            $contract = Contract::create($data);
+            $this->storeFile($request, $contract);
+            Audit::log($contract, 'created', ['status' => $contract->status]);
+
+            return $contract;
+        });
 
         return redirect()->route('admin.contracts.show', $contract)->with('saved', 'Contract '.$contract->reference.' created.');
     }
@@ -64,8 +70,10 @@ class ContractController extends Controller
         $data = $this->validated($request);
         $reason = $request->input('amendment_reason');
         $wasVersion = $contract->version;
-        $this->lifecycle->amend($contract, $data, $request->user(), $reason);
-        $this->storeFile($request, $contract);
+        DB::transaction(function () use ($request, $contract, $data, $reason) {
+            $this->lifecycle->amend($contract, $data, $request->user(), $reason);
+            $this->storeFile($request, $contract);
+        });
         $message = $contract->version > $wasVersion ? 'Contract amended. Version '.$wasVersion.' is kept on record.' : 'Contract updated.';
 
         return redirect()->route('admin.contracts.show', $contract)->with('saved', $message);
@@ -75,6 +83,16 @@ class ContractController extends Controller
     public function signature(Request $request, Contract $contract): RedirectResponse
     {
         $action = $request->validate(['action' => ['required', 'in:request,withdraw,clear']])['action'];
+
+        // Preconditions come back as a form error on the contract page, like the lifecycle actions, not a bare 403.
+        $problem = match ($action) {
+            'request' => in_array($contract->status, ['draft', 'approved', 'active']) && ! $contract->isSigned() ? null : 'Only unsigned draft, approved or active contracts can be sent for signature.',
+            'withdraw' => $contract->sent_for_signature_at && ! $contract->isSigned() ? null : 'There is no open signature request to withdraw.',
+            default => $contract->isClosed() ? 'The signature on a '.strtolower($contract->statusName()).' contract is part of the record and cannot be cleared.' : ($contract->isSignedInPortal() ? null : 'This contract has no portal signature to clear.'),
+        };
+        if ($problem) {
+            return back()->withErrors(['action' => $problem]);
+        }
 
         match ($action) {
             'request' => $this->sendForSignature($contract, $request),
@@ -92,22 +110,26 @@ class ContractController extends Controller
     /** A draft is approved on the way out; the client then signs, which activates it. */
     private function sendForSignature(Contract $contract, Request $request): void
     {
-        abort_unless(in_array($contract->status, ['draft', 'approved', 'active']) && ! $contract->isSigned(), 403, 'Only unsigned draft, approved or active contracts can be sent for signature.');
-        if ($contract->status === 'draft') {
-            $this->lifecycle->transition($contract, 'approve', $request->user());
-        }
-        $contract->forceFill(['sent_for_signature_at' => now()])->save();
-        Audit::log($contract, 'sent_for_signature');
+        DB::transaction(function () use ($contract, $request) {
+            if ($contract->status === 'draft') {
+                $this->lifecycle->transition($contract, 'approve', $request->user());
+            }
+            $contract->forceFill(['sent_for_signature_at' => now()])->save();
+            Audit::log($contract, 'sent_for_signature');
+        });
         app(Notifier::class)->contractSentForSignature($contract->fresh(['client.users']));
     }
 
     private function clearSignature(Contract $contract): void
     {
-        if ($contract->signature_path) {
-            Storage::disk('local')->delete($contract->signature_path);
+        $path = $contract->signature_path;
+        DB::transaction(function () use ($contract) {
+            $contract->forceFill(['signature_path' => null, 'signed_name' => null, 'signed_ip' => null, 'signed_by' => null, 'signed_at' => null, 'sent_for_signature_at' => null, 'standard_terms' => null])->save();
+            Audit::log($contract, 'signature_cleared');
+        });
+        if ($path) {
+            Storage::disk('local')->delete($path);
         }
-        $contract->forceFill(['signature_path' => null, 'signed_name' => null, 'signed_ip' => null, 'signed_by' => null, 'signed_at' => null, 'sent_for_signature_at' => null, 'standard_terms' => null])->save();
-        Audit::log($contract, 'signature_cleared');
     }
 
     /** approve | activate | complete | terminate | cancel | reopen */
@@ -121,22 +143,31 @@ class ContractController extends Controller
             return back()->withErrors(['reason' => 'Give a reason for the termination; it goes on the audit log.']);
         }
         $this->lifecycle->transition($contract, $data['action'], $request->user(), array_filter(['reason' => $data['reason'] ?? null, 'terminated_at' => isset($data['terminated_at']) ? Carbon::parse($data['terminated_at']) : null]));
-        app(Notifier::class)->contractStatus($contract->fresh(['client.users']), $data['action']);
+        $contract = $contract->fresh(['client.users']);
+        app(Notifier::class)->contractStatus($contract, $data['action']);
 
-        return back()->with('saved', 'Contract is now '.strtolower($contract->fresh()->statusName()).'.');
+        return back()->with('saved', 'Contract is now '.strtolower($contract->statusName()).'.');
     }
 
     public function remind(Request $request, Contract $contract): RedirectResponse
     {
         abort_unless($contract->awaitingSignature(), 403, 'Only contracts awaiting signature can be reminded.');
-        app(Notifier::class)->remind($contract->load('client.users'), $request->user());
+        if (! app(Notifier::class)->remind($contract->load('client.users'), $request->user())) {
+            return back();
+        }
 
         return back()->with('saved', 'Signature reminder emailed to '.$contract->client->company.'.');
     }
 
     public function renew(Request $request, Contract $contract): RedirectResponse
     {
-        $renewal = $this->lifecycle->renew($contract, $request->user());
+        if ($existing = $contract->renewals()->first()) {
+            return redirect()->route('admin.contracts.show', $existing)->with('saved', $contract->reference.' already has a renewal, '.$existing->reference.'.');
+        }
+        if (! ($contract->isLive() || $contract->effectiveStatus() === 'expired')) {
+            return back()->withErrors(['action' => 'Only active or expired contracts can be renewed.']);
+        }
+        $renewal = DB::transaction(fn () => $this->lifecycle->renew($contract, $request->user()));
 
         return redirect()->route('admin.contracts.edit', $renewal)->with('saved', 'Renewal '.$renewal->reference.' drafted from '.$contract->reference.'. Check the dates and amount, then approve it.');
     }

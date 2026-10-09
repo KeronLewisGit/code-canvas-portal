@@ -7,7 +7,7 @@ use App\Services\Notifier;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
-/** Weekly: remind clients about overdue invoices, no more than once every 7 days per invoice. */
+/** Weekly: remind clients about overdue invoices, no more than once a week per invoice. */
 class SendPaymentReminders implements ShouldQueue
 {
     use Queueable;
@@ -15,7 +15,7 @@ class SendPaymentReminders implements ShouldQueue
     public function handle(Notifier $notifier): void
     {
         $ids = Invoice::whereIn('status', ['sent', 'partial'])->whereDate('due_date', '<', now()->toDateString())
-            ->where(fn ($q) => $q->whereNull('reminded_at')->orWhere('reminded_at', '<', now()->subDays(7)))->pluck('id');
+            ->where(fn ($q) => $q->whereNull('reminded_at')->orWhere('reminded_at', '<', now()->subDays(6)))->pluck('id'); // 6, not 7: the weekly run drifts by seconds and would otherwise skip a week
         foreach ($ids as $id) {
             try {
                 $invoice = Invoice::with('client.users')->find($id);

@@ -69,7 +69,11 @@
                     <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="remove_file" value="1" class="size-4 rounded border-line"> Remove the file</label>
                 @endif
                 <x-field label="Upload PDF or image" name="file" hint="Up to 10 MB. Stored privately; only you and this client can download it."><input id="file" name="file" type="file" accept=".pdf,image/*" class="file-input"></x-field>
-                <x-field label="Signed on" name="signed_at"><input id="signed_at" name="signed_at" type="date" value="{{ old('signed_at', $contract->signed_at?->format('Y-m-d')) }}" class="input"></x-field>
+                @if ($contract->isSignedInPortal())
+                    <p class="text-sm">Signed in the portal on {{ $contract->signed_at->format('j M Y, g:ia') }}. The date comes from the e-signature and cannot be edited here.</p>
+                @else
+                    <x-field label="Signed on" name="signed_at"><input id="signed_at" name="signed_at" type="date" value="{{ old('signed_at', $contract->signed_at?->format('Y-m-d')) }}" class="input"></x-field>
+                @endif
             </div>
             <div class="flex gap-2"><button class="btn btn-primary">{{ $contract->exists ? 'Save changes' : 'Create contract' }}</button><a href="{{ $contract->exists ? route('admin.contracts.show', $contract) : route('admin.contracts.index') }}" class="btn btn-light">Cancel</a></div>
         </div>

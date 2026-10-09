@@ -31,7 +31,8 @@ class DatabaseSeeder extends Seeder
             ['description' => 'Hostinger deployment and launch support', 'quantity' => 1, 'unit_price' => 1500],
         ]);
 
-        $contract = Contract::create(['client_id' => $client->id, 'title' => 'Booking website and admin dashboard', 'type' => 'booking-system', 'start_date' => now()->subDays(30), 'end_date' => now()->addDays(45), 'amount' => 15000, 'status' => 'active', 'scope' => "- Public booking site with 13 experiences and a trip planner\n- Admin dashboard for bookings, calendar, reviews and gallery\n- Deployment to Hostinger with SSL\n- Two rounds of revisions",  'signed_at' => now()->subDays(29)]);
+        $contract = Contract::create(['client_id' => $client->id, 'title' => 'Booking website and admin dashboard', 'type' => 'booking-system', 'start_date' => now()->subDays(30), 'end_date' => now()->addDays(45), 'amount' => 15000, 'status' => 'active', 'scope' => "- Public booking site with 13 experiences and a trip planner\n- Admin dashboard for bookings, calendar, reviews and gallery\n- Deployment to Hostinger with SSL\n- Two rounds of revisions",  'signed_at' => now()->subDays(29), 'approved_at' => now()->subDays(31), 'approved_by' => $admin->id, 'activated_at' => now()->subDays(29)]);
+        $contract->freezeTerms();
         $quote->update(['contract_id' => $contract->id]);
 
         $deposit = Invoice::create(['client_id' => $client->id, 'contract_id' => $contract->id, 'quotation_id' => $quote->id, 'title' => 'Deposit: booking website and admin dashboard', 'issue_date' => now()->subDays(29), 'due_date' => now()->subDays(15), 'status' => 'sent', 'sent_at' => now()->subDays(29), 'notes' => config('company.document_terms')]);
