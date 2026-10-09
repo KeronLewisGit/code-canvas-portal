@@ -43,13 +43,12 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::patch('clients/{client}/users/{user}', [Admin\ClientUserController::class, 'update'])->name('clients.users.update');
     Route::delete('clients/{client}/users/{user}', [Admin\ClientUserController::class, 'destroy'])->name('clients.users.destroy');
 
-    Route::get('contracts/dashboard', fn () => redirect()->route('admin.reports.revenue'));
     Route::resource('contracts', Admin\ContractController::class);
     Route::patch('contracts/{contract}/signature', [Admin\ContractController::class, 'signature'])->name('contracts.signature');
     Route::patch('contracts/{contract}/lifecycle', [Admin\ContractController::class, 'lifecycle'])->name('contracts.lifecycle');
     Route::post('contracts/{contract}/renew', [Admin\ContractController::class, 'renew'])->name('contracts.renew');
     Route::post('contracts/{contract}/remind', [Admin\ContractController::class, 'remind'])->middleware('throttle:20,1')->name('contracts.remind');
-    Route::get('contracts/{contract}/versions/{version}', [Admin\ContractController::class, 'version'])->name('contracts.version');
+    Route::get('contracts/{contract}/versions/{version}', [Admin\ContractController::class, 'version'])->whereNumber('version')->name('contracts.version');
     Route::get('contracts/{contract}/activity', [Admin\ContractController::class, 'activity'])->name('contracts.activity');
 
     Route::get('reports/revenue', Admin\RevenueReportController::class)->name('reports.revenue');

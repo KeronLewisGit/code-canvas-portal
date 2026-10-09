@@ -35,7 +35,9 @@ class ContractSigningTest extends TestCase
     public function test_client_cannot_sign_until_admin_sends_it(): void
     {
         $this->contract->update(['status' => 'active']);
-        $this->actingAs($this->clientUser)->post(route('portal.contracts.sign.store', $this->contract), ['signed_name' => 'Ann', 'agree' => 1, 'signature' => $this->png])->assertForbidden();
+        $this->actingAs($this->clientUser)->post(route('portal.contracts.sign.store', $this->contract), ['signed_name' => 'Ann', 'agree' => 1, 'signature' => $this->png])
+            ->assertRedirect(route('portal.contracts.show', $this->contract))->assertSessionHas('saved', 'This contract is not open for signature.');
+        $this->assertFalse($this->contract->fresh()->isSigned());
     }
 
     public function test_sending_for_signature_activates_a_draft_and_client_can_sign(): void
@@ -57,8 +59,10 @@ class ContractSigningTest extends TestCase
         $this->assertSame($this->clientUser->id, $this->contract->signed_by);
         Storage::disk('local')->assertExists($this->contract->signature_path);
 
-        // Signing twice is refused and the printable contract shows the signature.
-        $this->actingAs($this->clientUser)->post(route('portal.contracts.sign.store', $this->contract), ['signed_name' => 'Again', 'agree' => 1, 'signature' => $this->png])->assertForbidden();
+        // Signing twice (e.g. a double click) is refused gracefully and the printable contract shows the signature.
+        $this->actingAs($this->clientUser)->post(route('portal.contracts.sign.store', $this->contract), ['signed_name' => 'Again', 'agree' => 1, 'signature' => $this->png])
+            ->assertRedirect(route('portal.contracts.show', $this->contract))->assertSessionHas('saved', 'This contract is already signed.');
+        $this->assertSame('Ann Example', $this->contract->fresh()->signed_name);
         $this->actingAs($this->clientUser)->get(route('documents.contract', $this->contract))->assertOk()->assertSee('Signed electronically')->assertSee('data:image/png;base64');
     }
 

@@ -1,6 +1,6 @@
 <x-layout title="Record a payment">
     <x-page title="Record a payment" eyebrow="Counts as verified immediately" :back="[route('admin.payments.index'), 'Payments']" />
-    <form method="post" action="{{ route('admin.payments.store') }}" enctype="multipart/form-data" class="card grid max-w-3xl gap-5 sm:grid-cols-2" x-data="paymentForm(@js(old('method', $payment->method)), @js(collect(config('company.payment_methods'))->map->proof))">
+    <form method="post" action="{{ route('admin.payments.store') }}" enctype="multipart/form-data" class="card grid max-w-3xl gap-5 sm:grid-cols-2">
         @csrf
         <x-field label="Client" name="client_id" required class="sm:col-span-2">
             <select id="client_id" name="client_id" required class="input"><option value="">Choose a client</option>@foreach ($clients as $c)<option value="{{ $c->id }}" @selected((int) old('client_id', $payment->client_id) === $c->id)>{{ $c->company }}</option>@endforeach</select>
@@ -16,7 +16,7 @@
             <select id="currency" name="currency" class="input">@foreach (config('company.currencies') as $k => $v)<option value="{{ $k }}" @selected(old('currency', $payment->currency) === $k)>{{ $k }}</option>@endforeach</select>
         </x-field>
         <x-field label="Method" name="method" required>
-            <select id="method" name="method" x-model="method" class="input">@foreach (config('company.payment_methods') as $k => $m)<option value="{{ $k }}">{{ $m['label'] }}</option>@endforeach</select>
+            <select id="method" name="method" class="input">@foreach (config('company.payment_methods') as $k => $m)<option value="{{ $k }}" @selected(old('method', $payment->method) === $k)>{{ $m['label'] }}</option>@endforeach</select>
         </x-field>
         <x-field label="Date received" name="paid_on" required><input id="paid_on" name="paid_on" type="date" value="{{ old('paid_on', $payment->paid_on?->format('Y-m-d')) }}" required class="input"></x-field>
         <x-field label="Reference" name="reference" class="sm:col-span-2" hint="Transfer reference, cheque number, or who received the cash."><input id="reference" name="reference" value="{{ old('reference') }}" class="input"></x-field>

@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
+use App\Models\Contract;
 use App\Models\Payment;
 use App\Services\Notifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class PaymentController extends Controller
@@ -20,7 +22,7 @@ class PaymentController extends Controller
     public function create(Request $request): View
     {
         $client = $request->user()->client;
-        $contracts = $client->contracts()->whereIn('status', ['active', 'completed'])->get();
+        $contracts = $client->contracts()->whereIn('status', Contract::PAYABLE_STATUSES)->get();
         $invoices = $client->invoices()->whereIn('status', ['sent', 'partial'])->get();
         $invoice = $request->filled('invoice') ? $invoices->firstWhere('id', $request->integer('invoice')) : null;
         $contract = $request->filled('contract') ? $contracts->firstWhere('id', $request->integer('contract')) : $invoice?->contract;
@@ -36,7 +38,7 @@ class PaymentController extends Controller
     {
         $client = $request->user()->client;
         $data = $request->validate([
-            'contract_id' => ['nullable', Rule::exists('contracts', 'id')->where('client_id', $client->id)->whereIn('status', ['approved', 'active', 'completed', 'expired'])],
+            'contract_id' => ['nullable', Rule::exists('contracts', 'id')->where('client_id', $client->id)->whereIn('status', Contract::PAYABLE_STATUSES)],
             'invoice_id' => ['nullable', Rule::exists('invoices', 'id')->where('client_id', $client->id)->whereIn('status', ['sent', 'partial'])],
             'amount' => ['required', 'numeric', 'min:0.01', 'max:99999999'],
             'method' => ['required', 'in:'.implode(',', array_keys(config('company.payment_methods')))],
@@ -44,18 +46,28 @@ class PaymentController extends Controller
             'reference' => ['nullable', 'string', 'max:160'],
             'note' => ['nullable', 'string', 'max:2000'],
             'proof' => [Rule::requiredIf(fn () => Payment::methodNeedsProof($request->input('method', ''))), 'nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
-        ], ['proof.required' => 'Bank transfers need a screenshot or PDF of the transfer confirmation.', 'contract_id.required_without' => 'Choose the contract or invoice this payment is for.']);
+        ], ['proof.required' => 'Bank transfers need a screenshot or PDF of the transfer confirmation.']);
 
-        if (empty($data['contract_id']) && empty($data['invoice_id'])) {
-            return back()->withErrors(['contract_id' => 'Choose the contract or invoice this payment is for.'])->withInput();
+        $invoice = ! empty($data['invoice_id']) ? $client->invoices()->find($data['invoice_id']) : null;
+        $contract = ! empty($data['contract_id']) ? $client->contracts()->find($data['contract_id']) : null;
+        if (! $invoice && ! $contract) {
+            throw ValidationException::withMessages(['contract_id' => 'Choose the contract or invoice this payment is for.']);
         }
-        if (! empty($data['invoice_id']) && empty($data['contract_id'])) {
-            $data['contract_id'] = $client->invoices()->find($data['invoice_id'])?->contract_id;
+        if ($invoice && $contract && $invoice->contract_id && $invoice->contract_id !== $contract->id) {
+            throw ValidationException::withMessages(['contract_id' => 'That invoice is on a different contract. Pick one or the other.']);
         }
-        $currency = ! empty($data['invoice_id']) ? $client->invoices()->find($data['invoice_id'])->currency : $client->contracts()->find($data['contract_id'])->currency;
+        // An invoice always decides the contract and currency so a payment can never credit the wrong contract.
+        $target = $invoice ?? $contract;
+        $data['contract_id'] = $invoice ? $invoice->contract_id : $contract->id;
         unset($data['proof']);
 
-        $payment = $client->payments()->create($data + ['currency' => $currency, 'status' => 'pending', 'submitted_by' => $request->user()->id, 'proof_path' => $request->hasFile('proof') ? $request->file('proof')->store('payments', 'local') : null]);
+        $proofPath = $request->hasFile('proof') ? $request->file('proof')->store('payments', 'local') : null;
+        if ($proofPath === false) {
+            // The local disk does not throw; without this the payment would be saved with its proof silently missing.
+            throw ValidationException::withMessages(['proof' => 'The file could not be saved. Please try again or contact us.']);
+        }
+
+        $payment = $client->payments()->create($data + ['currency' => $target->currency, 'status' => 'pending', 'submitted_by' => $request->user()->id, 'proof_path' => $proofPath]);
         app(Notifier::class)->paymentSubmitted($payment->load('client.users', 'invoice'));
 
         return redirect()->route('portal.payments.show', $payment)->with('saved', 'Payment submitted. We will verify it and update your balance, usually within one working day.');

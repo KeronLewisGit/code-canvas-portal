@@ -11,6 +11,3 @@ parameters:
         - identifier: missingType.generics
         - identifier: nullsafe.neverNull
         - identifier: argument.templateType
-        # Relation and date-cast types are not inferred for attribute-based models; runtime behaviour is covered by tests.
-        - '#Eloquent\\Model::#'
-        - '#Cannot call method [a-zA-Z]+\(\) on string#'

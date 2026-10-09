@@ -15,7 +15,6 @@ window.addEventListener('DOMContentLoaded', async () => {
         const flow = await new Previewer().preview(source.innerHTML, sheets, stage);
         source.remove();
         if (status) status.textContent = `Letter, ${flow.total} page${flow.total === 1 ? '' : 's'}`;
-        document.body.classList.add('doc-ready');
     } catch (e) {
         console.error('Pagination failed, showing the plain document', e);
         stage.innerHTML = source.innerHTML;

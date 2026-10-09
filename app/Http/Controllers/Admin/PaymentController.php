@@ -12,6 +12,7 @@ use App\Support\Audit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class PaymentController extends Controller
@@ -50,13 +51,12 @@ class PaymentController extends Controller
             'note' => ['nullable', 'string', 'max:2000'],
             'proof' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
         ]);
-        $this->guardOwnership($data);
-        if (! empty($data['invoice_id']) && empty($data['contract_id'])) {
-            $data['contract_id'] = Invoice::find($data['invoice_id'])?->contract_id;
-        }
+        $data = $this->guardOwnership($data);
         unset($data['proof']);
+        $proofPath = $request->hasFile('proof') ? $request->file('proof')->store('payments', 'local') : null;
+        abort_if($proofPath === false, 500, 'The proof file could not be stored. Check the storage folder permissions.');
 
-        $payment = Payment::create($data + ['status' => 'verified', 'submitted_by' => $request->user()->id, 'verified_by' => $request->user()->id, 'verified_at' => now(), 'proof_path' => $request->hasFile('proof') ? $request->file('proof')->store('payments', 'local') : null]);
+        $payment = Payment::create($data + ['status' => 'verified', 'submitted_by' => $request->user()->id, 'verified_by' => $request->user()->id, 'verified_at' => now(), 'proof_path' => $proofPath]);
         $payment->invoice?->refreshPaymentStatus();
         Audit::log($payment, 'recorded', ['amount' => (float) $payment->amount, 'method' => $payment->method]);
 
@@ -95,25 +95,48 @@ class PaymentController extends Controller
 
     public function destroy(Payment $payment): RedirectResponse
     {
-        if ($payment->proof_path) {
-            Storage::disk('local')->delete($payment->proof_path);
-        }
+        abort_if($payment->status === 'verified', 403, 'Verified payments are part of the financial record. Reverse the verification first if it was recorded in error.');
         $invoice = $payment->invoice;
         Audit::log($payment, 'deleted', ['amount' => (float) $payment->amount, 'status' => $payment->status, 'client' => $payment->client->company]);
         $payment->delete();
+        if ($payment->proof_path) {
+            Storage::disk('local')->delete($payment->proof_path); // after the row is gone, so a failed delete never strands a payment without its proof
+        }
         $invoice?->refreshPaymentStatus();
 
         return redirect()->route('admin.payments.index')->with('saved', 'Payment deleted.');
     }
 
-    /** The contract and invoice on a payment must belong to the same client. */
-    private function guardOwnership(array $data): void
+    /**
+     * The contract and invoice must belong to the chosen client, the invoice must sit on the chosen contract,
+     * and the payment must be in the document's currency (otherwise USD 500 would settle a TTD 500 invoice).
+     * Problems come back as field errors with the form intact, not a bare 422 page.
+     */
+    private function guardOwnership(array $data): array
     {
-        if (! empty($data['contract_id']) && Contract::find($data['contract_id'])?->client_id !== (int) $data['client_id']) {
-            abort(422, 'That contract belongs to a different client.');
+        $contract = ! empty($data['contract_id']) ? Contract::find($data['contract_id']) : null;
+        $invoice = ! empty($data['invoice_id']) ? Invoice::find($data['invoice_id']) : null;
+        $errors = [];
+        if ($contract && $contract->client_id !== (int) $data['client_id']) {
+            $errors['contract_id'] = 'That contract belongs to a different client.';
         }
-        if (! empty($data['invoice_id']) && Invoice::find($data['invoice_id'])?->client_id !== (int) $data['client_id']) {
-            abort(422, 'That invoice belongs to a different client.');
+        if ($invoice && $invoice->client_id !== (int) $data['client_id']) {
+            $errors['invoice_id'] = 'That invoice belongs to a different client.';
         }
+        if ($invoice && $contract && $invoice->contract_id && $invoice->contract_id !== $contract->id) {
+            $errors['invoice_id'] = 'That invoice is on a different contract. Leave the contract blank to take it from the invoice.';
+        }
+        $target = $invoice ?? $contract;
+        if ($target && $target->currency !== $data['currency']) {
+            $errors['currency'] = 'This '.($invoice ? 'invoice' : 'contract').' is in '.$target->currency.'. Record the payment in the same currency.';
+        }
+        if ($errors) {
+            throw ValidationException::withMessages($errors);
+        }
+        if ($invoice && ! $contract) {
+            $data['contract_id'] = $invoice->contract_id;
+        }
+
+        return $data;
     }
 }

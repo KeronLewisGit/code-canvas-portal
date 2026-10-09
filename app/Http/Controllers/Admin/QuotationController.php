@@ -11,6 +11,7 @@ use App\Models\Quotation;
 use App\Services\Notifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class QuotationController extends Controller
@@ -20,7 +21,9 @@ class QuotationController extends Controller
     public function index(Request $request): View
     {
         $quotations = Quotation::with('client')
-            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
+            // "Expired" is usually not stored; it is a sent quotation past its valid-until date.
+            ->when($request->status === 'expired', fn ($q) => $q->where(fn ($w) => $w->where('status', 'expired')->orWhere(fn ($s) => $s->where('status', 'sent')->whereDate('valid_until', '<', now()->toDateString()))))
+            ->when($request->filled('status') && $request->status !== 'expired', fn ($q) => $q->where('status', $request->status))
             ->when($request->filled('client'), fn ($q) => $q->where('client_id', $request->client))
             ->latest('issue_date')->latest('id')->paginate(25)->withQueryString();
 
@@ -31,15 +34,19 @@ class QuotationController extends Controller
     {
         $quotation = new Quotation(['issue_date' => now(), 'valid_until' => now()->addDays(30), 'currency' => config('company.currency.code'), 'tax_rate' => config('company.tax_rate'), 'status' => 'draft', 'client_id' => $request->integer('client') ?: null]);
 
-        return view('admin.quotations.form', ['quotation' => $quotation, 'clients' => Client::orderBy('company')->get(), 'contracts' => Contract::with('client')->orderBy('reference')->get(), 'items' => []]);
+        return view('admin.quotations.form', $this->formData($quotation, []));
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $data = $request->validate($this->documentRules(['valid_until' => ['nullable', 'date', 'after_or_equal:issue_date'], 'intro' => ['nullable', 'string', 'max:5000']]));
+        $data = $this->validated($request);
         $items = $this->itemsFrom($request);
-        $quotation = Quotation::create($this->documentData($data));
-        $quotation->syncItems($items);
+        $quotation = DB::transaction(function () use ($data, $items) {
+            $quotation = Quotation::create($this->documentData($data));
+            $quotation->syncItems($items);
+
+            return $quotation;
+        });
 
         return redirect()->route('admin.quotations.show', $quotation)->with('saved', 'Quotation '.$quotation->reference.' created.');
     }
@@ -51,14 +58,17 @@ class QuotationController extends Controller
 
     public function edit(Quotation $quotation): View
     {
-        return view('admin.quotations.form', ['quotation' => $quotation, 'clients' => Client::orderBy('company')->get(), 'contracts' => Contract::with('client')->orderBy('reference')->get(), 'items' => $quotation->items]);
+        return view('admin.quotations.form', $this->formData($quotation, $quotation->items));
     }
 
     public function update(Request $request, Quotation $quotation): RedirectResponse
     {
-        $data = $request->validate($this->documentRules(['valid_until' => ['nullable', 'date', 'after_or_equal:issue_date'], 'intro' => ['nullable', 'string', 'max:5000']]));
-        $quotation->update($this->documentData($data));
-        $quotation->syncItems($this->itemsFrom($request));
+        $data = $this->validated($request);
+        $items = $this->itemsFrom($request);
+        DB::transaction(function () use ($quotation, $data, $items) {
+            $quotation->update($this->documentData($data));
+            $quotation->syncItems($items);
+        });
 
         return redirect()->route('admin.quotations.show', $quotation)->with('saved', 'Quotation updated.');
     }
@@ -75,7 +85,8 @@ class QuotationController extends Controller
     {
         $status = $request->validate(['status' => ['required', 'in:'.implode(',', array_keys(config('company.quotation_statuses')))]])['status'];
         $wasSent = $quotation->sent_at !== null;
-        $quotation->forceFill(['status' => $status, 'sent_at' => $status === 'sent' ? ($quotation->sent_at ?? now()) : $quotation->sent_at, 'accepted_at' => $status === 'accepted' ? now() : null, 'declined_at' => $status === 'declined' ? now() : null])->save();
+        // Re-saving "accepted" must not overwrite the time the client actually accepted.
+        $quotation->forceFill(['status' => $status, 'sent_at' => $status === 'sent' ? ($quotation->sent_at ?? now()) : $quotation->sent_at, 'accepted_at' => $status === 'accepted' ? ($quotation->accepted_at ?? now()) : null, 'declined_at' => $status === 'declined' ? ($quotation->declined_at ?? now()) : null])->save();
 
         if ($status === 'sent' && ! $wasSent) {
             app(Notifier::class)->quotationSent($quotation->fresh(['client.users']));
@@ -89,7 +100,9 @@ class QuotationController extends Controller
     public function remind(Request $request, Quotation $quotation): RedirectResponse
     {
         abort_unless($quotation->canBeAnswered(), 403, 'Only sent quotations that are still open can be reminded.');
-        app(Notifier::class)->remind($quotation->load('client.users'), $request->user());
+        if (! app(Notifier::class)->remind($quotation->load('client.users'), $request->user())) {
+            return back();
+        }
 
         return back()->with('saved', 'Reminder emailed to '.$quotation->client->company.'.');
     }
@@ -97,18 +110,39 @@ class QuotationController extends Controller
     /** Copy the quotation into a new draft invoice. */
     public function toInvoice(Quotation $quotation): RedirectResponse
     {
-        $invoice = Invoice::create(['client_id' => $quotation->client_id, 'contract_id' => $quotation->contract_id, 'quotation_id' => $quotation->id, 'title' => $quotation->title, 'issue_date' => now(), 'due_date' => now()->addDays(14), 'currency' => $quotation->currency, 'tax_rate' => $quotation->tax_rate, 'status' => 'draft', 'notes' => $quotation->notes]);
-        $invoice->syncItems($quotation->items->map(fn ($i) => $i->only('description', 'quantity', 'unit_price'))->all());
+        $invoice = DB::transaction(function () use ($quotation) {
+            $invoice = Invoice::create(['client_id' => $quotation->client_id, 'contract_id' => $quotation->contract_id, 'quotation_id' => $quotation->id, 'title' => $quotation->title, 'issue_date' => now(), 'due_date' => now()->addDays(14), 'currency' => $quotation->currency, 'tax_rate' => $quotation->tax_rate, 'status' => 'draft', 'notes' => $quotation->notes]);
+            $invoice->syncItems($quotation->items->map(fn ($i) => $i->only('description', 'quantity', 'unit_price'))->all());
+
+            return $invoice;
+        });
 
         return redirect()->route('admin.invoices.edit', $invoice)->with('saved', 'Invoice '.$invoice->reference.' drafted from '.$quotation->reference.'.');
     }
 
-    /** Start a contract pre-filled from the quotation total. */
+    /** Start a contract pre-filled from the quotation total. One contract per quotation. */
     public function toContract(Quotation $quotation): RedirectResponse
     {
-        $contract = Contract::create(['client_id' => $quotation->client_id, 'title' => $quotation->title, 'type' => 'website', 'start_date' => now(), 'amount' => $quotation->total, 'billing_cycle' => 'one_time', 'currency' => $quotation->currency, 'status' => 'draft', 'scope' => $quotation->items->map(fn ($i) => '- '.$i->description)->implode("\n")]);
-        $quotation->update(['contract_id' => $contract->id]);
+        if ($quotation->contract_id) {
+            return redirect()->route('admin.contracts.show', $quotation->contract_id)->with('saved', 'This quotation already has a contract.');
+        }
+        $contract = DB::transaction(function () use ($quotation) {
+            $contract = Contract::create(['client_id' => $quotation->client_id, 'title' => $quotation->title, 'type' => 'website', 'start_date' => now(), 'amount' => $quotation->total, 'billing_cycle' => 'one_time', 'currency' => $quotation->currency, 'status' => 'draft', 'scope' => $quotation->items->map(fn ($i) => '- '.$i->description)->implode("\n")]);
+            $quotation->update(['contract_id' => $contract->id]);
+
+            return $contract;
+        });
 
         return redirect()->route('admin.contracts.edit', $contract)->with('saved', 'Contract '.$contract->reference.' drafted from '.$quotation->reference.'. Check the type and dates.');
+    }
+
+    private function validated(Request $request): array
+    {
+        return $request->validate($this->documentRules($request, ['valid_until' => ['nullable', 'date', 'after_or_equal:issue_date'], 'intro' => ['nullable', 'string', 'max:5000']]), $this->documentMessages());
+    }
+
+    private function formData(Quotation $quotation, iterable $items): array
+    {
+        return ['quotation' => $quotation, 'clients' => Client::orderBy('company')->get(), 'contracts' => Contract::with('client')->orderBy('reference')->get(), 'items' => $items];
     }
 }

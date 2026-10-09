@@ -17,11 +17,13 @@ class ContractVersion extends Model
         return ['snapshot' => 'array', 'created_at' => 'datetime'];
     }
 
+    /** @return BelongsTo<Contract, $this> */
     public function contract(): BelongsTo
     {
         return $this->belongsTo(Contract::class);
     }
 
+    /** @return BelongsTo<User, $this> */
     public function author(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

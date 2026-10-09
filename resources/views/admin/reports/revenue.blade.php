@@ -1,7 +1,7 @@
 <x-layout title="Revenue">
     @php($cur = config('company.currency.code'))
     <x-page title="Reports" eyebrow="Revenue, receivables and forecasts">
-        <x-slot:actions><a href="{{ route('admin.reports.banking.export', ['part' => 'forecast'] + array_filter($filters)) }}" class="btn btn-light">Download forecast CSV</a></x-slot:actions>
+        <x-slot:actions><a href="{{ route('admin.reports.banking.export', ['part' => 'forecast']) }}" class="btn btn-light" title="The banking forecast: all live contracts with disclosure consent, unaffected by the filters below">Download banking forecast CSV</a></x-slot:actions>
     </x-page>
     <x-tabs :items="[['admin.reports.revenue', 'Revenue', 'admin.reports.revenue'], ['admin.reports.banking', 'Banking readiness report', 'admin.reports.banking']]" />
     <p class="mb-4 text-sm text-muted">{{ $portfolio['live'] }} live of {{ $portfolio['contracts'] }} contracts in this view. Filters apply as you change them.</p>

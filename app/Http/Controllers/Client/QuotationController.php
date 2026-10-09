@@ -18,14 +18,14 @@ class QuotationController extends Controller
 
     public function show(Request $request, Quotation $quotation): View
     {
-        $this->guard($request, $quotation);
+        $this->authorizeView($quotation);
 
         return view('portal.quotations.show', ['quotation' => $quotation->load('items')]);
     }
 
     public function answer(Request $request, Quotation $quotation): RedirectResponse
     {
-        $this->guard($request, $quotation);
+        $this->authorizeView($quotation);
         abort_unless($request->user()->can('answer', $quotation), 403, 'This quotation can no longer be answered.');
         $answer = $request->validate(['answer' => ['required', 'in:accept,decline']])['answer'];
 
@@ -33,10 +33,5 @@ class QuotationController extends Controller
         app(Notifier::class)->quotationAnswered($quotation->load('client.users'), $answer === 'accept');
 
         return back()->with('saved', $answer === 'accept' ? 'Thank you. We will be in touch with the contract and deposit invoice.' : 'Quotation declined. Tell us what would make it work.');
-    }
-
-    private function guard(Request $request, Quotation $quotation): void
-    {
-        $this->authorizeView($quotation);
     }
 }

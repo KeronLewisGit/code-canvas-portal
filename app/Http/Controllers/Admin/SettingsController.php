@@ -28,9 +28,9 @@ class SettingsController extends Controller
         $data = $request->validate([
             'group' => ['required', 'in:'.implode(',', array_keys(self::GROUPS))],
             'clauses' => ['required', 'array', 'min:1'],
-            'clauses.*.heading' => ['required', 'string', 'max:120'],
+            'clauses.*.heading' => ['required', 'string', 'max:120', 'distinct:ignore_case'],
             'clauses.*.text' => ['required', 'string', 'max:3000'],
-        ]);
+        ], ['clauses.*.heading.distinct' => 'Two clauses have the same heading. Give each clause its own heading.']);
         $terms = [];
         foreach ($data['clauses'] as $clause) {
             $terms[trim($clause['heading'])] = trim($clause['text']);

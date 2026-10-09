@@ -24,13 +24,13 @@ npm run build && php artisan serve
 
 | Login | Email | Password |
 |---|---|---|
-| Admin | hello@codecanvastt.com | password |
+| Admin | mxadmin@codecanvastt.com (the `COMPANY_EMAIL` address) | password |
 | Client (All Things Tobago) | client@example.com | password |
 | Client (Island Eats) | marcia@example.com | password |
 
 Quotations, invoices and contracts are laid out into Letter-size pages by Paged.js in the browser,
 so the on-screen preview, page count and running footers match the printed PDF exactly. Terms are
-edited under Admin → Terms. Invoice numbers continue from the previous tool at INV-000063.
+edited under Admin → Settings. Invoice numbers continue from the previous tool at INV-000063.
 
 Company and bank details live in `config/company.php` and can be overridden with the
 `COMPANY_*` and `BANK_*` keys in `.env`.

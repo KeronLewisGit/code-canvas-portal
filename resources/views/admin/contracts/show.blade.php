@@ -57,14 +57,14 @@
                 <div class="mt-4 flex flex-wrap gap-2">
                     @foreach ($actions as $action)
                         @if ($action === 'terminate') @continue @endif
-                        <form method="post" action="{{ route('admin.contracts.lifecycle', $contract) }}">@csrf @method('patch')<input type="hidden" name="action" value="{{ $action }}"><button class="btn {{ in_array($action, ['approve', 'activate']) ? 'btn-primary' : 'btn-light' }} btn-sm">{{ ['approve' => 'Approve', 'activate' => 'Activate', 'complete' => 'Mark completed', 'cancel' => 'Cancel contract', 'reopen' => 'Back to draft'][$action] }}</button></form>
+                        <form method="post" action="{{ route('admin.contracts.lifecycle', $contract) }}" @if (in_array($action, ['cancel', 'complete', 'reopen'])) onsubmit="return confirm({{ Js::from(['cancel' => 'Cancel this contract? The client will be emailed.', 'complete' => 'Mark this contract completed? The client will be emailed.', 'reopen' => 'Move this contract back to draft?'][$action]) }})" @endif>@csrf @method('patch')<input type="hidden" name="action" value="{{ $action }}"><button class="btn {{ in_array($action, ['approve', 'activate']) ? 'btn-primary' : 'btn-light' }} btn-sm">{{ ['approve' => 'Approve', 'activate' => 'Activate', 'complete' => 'Mark completed', 'cancel' => 'Cancel contract', 'reopen' => 'Back to draft'][$action] }}</button></form>
                     @endforeach
                     @if (($contract->isLive() || $contract->effectiveStatus() === 'expired') && $contract->renewals->isEmpty())
                         <form method="post" action="{{ route('admin.contracts.renew', $contract) }}">@csrf<button class="btn btn-light btn-sm">Draft renewal</button></form>
                     @endif
                 </div>
                 @if (in_array('terminate', $actions))
-                    <details class="mt-4 rounded-xl bg-paper p-3">
+                    <details class="mt-4 rounded-xl bg-paper p-3" @if ($errors->has('reason') || $errors->has('terminated_at')) open @endif>
                         <summary class="cursor-pointer text-sm font-semibold text-red-700">Terminate contract</summary>
                         <form method="post" action="{{ route('admin.contracts.lifecycle', $contract) }}" class="mt-4 space-y-2">@csrf @method('patch')<input type="hidden" name="action" value="terminate">
                             <x-field label="Effective date" name="terminated_at"><input id="terminated_at" name="terminated_at" type="date" value="{{ now()->format('Y-m-d') }}" class="input"></x-field>
@@ -101,7 +101,7 @@
                     @if ($sig = $contract->signatureDataUri())<img src="{{ $sig }}" alt="Client signature" class="mt-4 h-16 w-auto rounded-lg bg-white ring-1 ring-line">@endif
                     <p class="mt-2">{{ $contract->signed_name }} · {{ $contract->signed_at->format('j M Y, g:ia') }}</p>
                     <p class="text-xs text-muted">IP {{ $contract->signed_ip }} · login {{ $contract->signer?->email }}</p>
-                    <form method="post" action="{{ route('admin.contracts.signature', $contract) }}" class="mt-3" onsubmit="return confirm('Clear the signature? The client will need to sign again.')">@csrf @method('patch')<input type="hidden" name="action" value="clear"><button class="btn-link-danger">Clear signature</button></form>
+                    @unless ($contract->isClosed())<form method="post" action="{{ route('admin.contracts.signature', $contract) }}" class="mt-3" onsubmit="return confirm('Clear the signature? The client will need to sign again.')">@csrf @method('patch')<input type="hidden" name="action" value="clear"><button class="btn-link-danger">Clear signature</button></form>@endunless
                 @elseif ($contract->isSigned())
                     <p class="mt-2"><x-badge status="verified">Signed copy uploaded</x-badge></p><p class="mt-2 text-muted">Signed {{ $contract->signed_at->format('j M Y') }}.</p>
                 @elseif ($contract->awaitingSignature())

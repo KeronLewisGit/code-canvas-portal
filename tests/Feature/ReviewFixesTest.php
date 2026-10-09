@@ -74,9 +74,11 @@ class ReviewFixesTest extends TestCase
         $png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
         $terminated = Contract::create(['client_id' => $this->client->id, 'title' => 'T', 'type' => 'website', 'start_date' => now(), 'amount' => 1, 'status' => 'terminated', 'sent_for_signature_at' => now()]);
         $this->assertFalse($terminated->awaitingSignature());
-        $this->actingAs($this->clientUser)->post(route('portal.contracts.sign.store', $terminated), ['signed_name' => 'Ann', 'agree' => 1, 'signature' => $png])->assertForbidden();
+        $this->actingAs($this->clientUser)->post(route('portal.contracts.sign.store', $terminated), ['signed_name' => 'Ann', 'agree' => 1, 'signature' => $png])->assertRedirect(route('portal.contracts.show', $terminated));
+        $this->assertFalse($terminated->fresh()->isSigned());
         $completed = Contract::create(['client_id' => $this->client->id, 'title' => 'C', 'type' => 'website', 'start_date' => now(), 'amount' => 1, 'status' => 'completed']);
-        $this->actingAs($this->admin)->patch(route('admin.contracts.signature', $completed), ['action' => 'request'])->assertForbidden();
+        $this->actingAs($this->admin)->patch(route('admin.contracts.signature', $completed), ['action' => 'request'])->assertRedirect()->assertSessionHasErrors('action');
+        $this->assertNull($completed->fresh()->sent_for_signature_at);
     }
 
     public function test_clearing_a_signature_also_unfreezes_the_terms(): void

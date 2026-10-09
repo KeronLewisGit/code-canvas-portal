@@ -44,7 +44,7 @@ class ContractFinance
             return 0;
         }
 
-        return $cycle['days'] ? intdiv($start->diffInDays($end), $cycle['days']) + 1 : intdiv((int) $start->diffInMonths($end), $cycle['months']) + 1;
+        return $cycle['days'] ? intdiv((int) $start->diffInDays($end), $cycle['days']) + 1 : intdiv((int) $start->diffInMonths($end), $cycle['months']) + 1;
     }
 
     /** Null for open-ended recurring contracts. */
@@ -137,7 +137,7 @@ class ContractFinance
         $cycle = $c->cycle();
         $noticeEdge = $c->end_date === null && $c->notice_period_days ? $from->copy()->addDays($c->notice_period_days) : null;
         $n = 0;
-        while (true) {
+        while ($n < 10000) { // a weekly cycle over 12 months is ~52 iterations; this only stops a runaway
             $date = $cycle['days'] ? $c->start_date->copy()->addDays($n * $cycle['days']) : $c->start_date->copy()->addMonthsNoOverflow($n * $cycle['months']);
             $n++;
             if ($date->gt($horizon) || ($c->end_date && $date->gt($c->end_date))) {
