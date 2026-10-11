@@ -118,4 +118,39 @@ class NotificationTest extends TestCase
         $this->assertNotNull($overdue->fresh()->reminded_at);
         $this->assertTrue($recent->fresh()->reminded_at->lt(now()->subDay()), 'recently reminded invoice is left alone');
     }
+
+    public function test_creating_a_login_emails_the_details_only_when_asked(): void
+    {
+        $this->actingAs($this->admin)->post(route('admin.clients.users.store', $this->client), ['name' => 'Bob', 'email' => 'bob@acme.test', 'send_email' => '1'])
+            ->assertRedirect()->assertSessionHas('saved', 'Portal login created and emailed to bob@acme.test.');
+        $bob = User::where('email', 'bob@acme.test')->firstOrFail();
+        Notification::assertSentTo($bob, PortalMail::class, function (PortalMail $mail) use ($bob) {
+            $rendered = $mail->toMail($bob);
+
+            return str_contains($mail->subject, 'client portal login')
+                && in_array('Email: bob@acme.test', $mail->lines, true)
+                && collect($mail->lines)->contains(fn ($l) => str_starts_with($l, 'Password: '))
+                && $rendered->actionUrl === route('login');
+        });
+        Notification::assertNotSentTo($this->clientUser, PortalMail::class);
+        $this->assertTrue(session('credentials')['emailed']);
+
+        $this->actingAs($this->admin)->post(route('admin.clients.users.store', $this->client), ['name' => 'Cy', 'email' => 'cy@acme.test', 'password' => 'chosen-password-1'])
+            ->assertRedirect()->assertSessionHas('saved', 'Portal login created.');
+        Notification::assertNotSentTo(User::where('email', 'cy@acme.test')->firstOrFail(), PortalMail::class);
+        $this->assertSame('chosen-password-1', session('credentials')['password']);
+        $this->assertFalse(session('credentials')['emailed']);
+    }
+
+    public function test_resetting_a_password_can_email_the_new_one(): void
+    {
+        $this->actingAs($this->admin)->patch(route('admin.clients.users.update', [$this->client, $this->clientUser]), ['send_email' => '1'])
+            ->assertRedirect()->assertSessionHas('saved', 'Password reset and emailed to ann@acme.test.');
+        $password = session('credentials')['password'];
+        Notification::assertSentTo($this->clientUser, PortalMail::class, fn (PortalMail $mail) => str_contains($mail->subject, 'password was reset') && in_array('Password: '.$password, $mail->lines, true));
+        $this->assertTrue(password_verify($password, $this->clientUser->fresh()->password));
+
+        $this->actingAs($this->admin)->patch(route('admin.clients.users.update', [$this->client, $this->clientUser]))->assertSessionHas('saved', 'Password reset.');
+        Notification::assertSentToTimes($this->clientUser, PortalMail::class, 1);
+    }
 }
