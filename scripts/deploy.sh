@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Update the live site after pushing to GitHub. Run on the server:  bash ~/public_html/scripts/deploy.sh
+# NOT for Hostinger Git auto-deploy: it pulls and resets the code itself. With auto-deploy use scripts/post-deploy.sh (cron).
 #  1. maintenance mode (visitors see a short "back soon" page instead of half-updated code)
 #  2. records the current version for scripts/rollback.sh, then backs up the database and uploads
 #  3. pulls the pushed code exactly (any edits made directly on the server are discarded; .env and uploads are not tracked, so they are kept)

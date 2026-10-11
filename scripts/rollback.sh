@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Put the code back to the version that was live before the last scripts/deploy.sh run.
+# NOT for Hostinger Git auto-deploy: it pulls and resets the code itself. With auto-deploy use scripts/post-deploy.sh (cron).
 # Database migrations are NOT undone automatically: if the bad deploy added migrations, check
 # `php artisan migrate:status` and, if needed, restore the database backup deploy.sh took (~/backups/db-*.sql.gz).
 set -euo pipefail
