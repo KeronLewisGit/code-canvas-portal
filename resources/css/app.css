@@ -92,6 +92,8 @@
     .nav-link { @apply flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-[15px] font-semibold text-white/80 hover:bg-white/10 hover:text-white; }
     .nav-link.active { @apply bg-white/15 text-white; }
     .nav-link svg { @apply size-5 shrink-0 opacity-80; }
+    .new-tag { @apply mr-1 inline-flex items-center rounded-full bg-brand-500 px-2 py-0.5 align-middle text-[11px] leading-none font-bold tracking-wide text-white uppercase; }
+    .nav-badge { @apply ml-auto inline-flex min-w-6 items-center justify-center rounded-full bg-brand-500 px-1.5 text-xs leading-6 font-bold text-white tabular-nums; }
     .sidebar { background: linear-gradient(180deg, #212121 0%, #1a2238 100%); }
 
     .skip-link { @apply sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-xl focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-ink focus:shadow-lg; }

@@ -3,33 +3,40 @@
     @php($methods = \App\Models\Payment::clientMethods())
     <x-page title="Submit a payment" subtitle="We verify every payment before it counts toward your balance, usually within one working day." :back="[route('portal.payments.index'), 'Payments']" />
     <div class="grid gap-6 lg:grid-cols-3">
-        <form method="post" action="{{ route('portal.payments.store') }}" enctype="multipart/form-data" class="card grid gap-5 sm:grid-cols-2 lg:col-span-2" x-data="paymentForm(@js(old('method', $payment->method)), @js(collect($methods)->map->proof), @js((string) old('invoice_id', $payment->invoice_id)), @js(config('company.currencies.'.$payment->currency, $payment->currency)))">
+        <form method="post" action="{{ route('portal.payments.store') }}" enctype="multipart/form-data" class="card grid gap-5 sm:grid-cols-2 lg:col-span-2" x-data="paymentForm(@js(old('method', request('method') === 'card' && $cardOptions ? 'card' : $payment->method)), @js(collect($methods)->map->proof), @js((string) old('invoice_id', $payment->invoice_id)), @js(config('company.currencies.'.$payment->currency, $payment->currency)), @js((object) $cardOptions))" :action="method === 'card' ? (card?.url ?? '') : @js(route('portal.payments.store'))"">
             @csrf
             <p class="text-sm text-muted sm:col-span-2">Choose the invoice you are paying.</p>
-            <x-field label="Invoice" name="invoice_id">
+            <x-field label="Invoice" name="invoice_id" x-bind:class="method === 'card' && 'sm:col-span-2'">
                 <select id="invoice_id" name="invoice_id" class="input" x-model="invoice" @change="pickInvoice($event.target.selectedOptions[0])"><option value="">No specific invoice</option>@foreach ($invoices as $i)<option value="{{ $i->id }}" data-balance="{{ number_format($i->balance(), 2, '.', '') }}" data-symbol="{{ config('company.currencies.'.$i->currency, $i->currency) }}" @selected((int) old('invoice_id', $payment->invoice_id) === $i->id)>{{ $i->reference }} · balance {{ money($i->balance(), $i->currency) }}</option>@endforeach</select>
             </x-field>
             <x-field label="Contract" name="contract_id" x-show="!invoice" hint="Only if you are paying toward a contract without an invoice.">
                 <select id="contract_id" name="contract_id" class="input" x-bind:disabled="!!invoice" @change="symbol = $event.target.selectedOptions[0]?.dataset.symbol || symbol"><option value="">No specific contract</option>@foreach ($contracts as $c)<option value="{{ $c->id }}" data-symbol="{{ config('company.currencies.'.$c->currency, $c->currency) }}" @selected((int) old('contract_id', $payment->contract_id) === $c->id)>{{ $c->title }} · balance {{ money($c->balance(), $c->currency) }}</option>@endforeach</select>
             </x-field>
-            <x-field label="Amount paid" name="amount" required><div class="relative"><span class="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-muted" x-text="symbol" aria-hidden="true"></span><input id="amount" x-ref="amount" name="amount" type="number" inputmode="decimal" step="0.01" min="0.01" value="{{ old('amount', $payment->amount) }}" required class="input pl-12"></div></x-field>
-            <x-field label="Date paid" name="paid_on" required><input id="paid_on" name="paid_on" type="date" max="{{ now()->format('Y-m-d') }}" value="{{ old('paid_on', $payment->paid_on?->format('Y-m-d')) }}" required class="input"></x-field>
+            <x-field label="Amount paid" name="amount" required x-show="method !== 'card'"><div class="relative"><span class="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-muted" x-text="symbol" aria-hidden="true"></span><input id="amount" x-ref="amount" x-bind:disabled="method === 'card'" name="amount" type="number" inputmode="decimal" step="0.01" min="0.01" value="{{ old('amount', $payment->amount) }}" required class="input pl-12"></div></x-field>
+            <x-field label="Date paid" name="paid_on" required x-show="method !== 'card'"><input id="paid_on" x-bind:disabled="method === 'card'" name="paid_on" type="date" max="{{ now()->format('Y-m-d') }}" value="{{ old('paid_on', $payment->paid_on?->format('Y-m-d')) }}" required class="input"></x-field>
             <x-field label="How did you pay?" name="method" required class="sm:col-span-2">
                 <div class="grid gap-2 sm:grid-cols-3">
+                    @if ($cardOptions)
+                        <label class="flex cursor-pointer items-start gap-2 rounded-xl p-3 ring-1 ring-line sm:col-span-3" :class="method === 'card' && 'bg-brand-50 ring-brand-400'"><input type="radio" name="method" value="card" x-model="method" @checked(old('method', request('method')) === 'card') class="mt-1"><span><span class="block text-sm font-semibold">Pay now by card</span><span class="block text-xs text-muted">Visa or Mastercard on WiPay's secure page. Confirmed straight away, nothing to upload.</span></span></label>
+                    @endif
                     @foreach ($methods as $k => $m)
                         <label class="flex cursor-pointer items-start gap-2 rounded-xl p-3 ring-1 ring-line" :class="method === '{{ $k }}' && 'bg-brand-50 ring-brand-400'"><input type="radio" name="method" value="{{ $k }}" x-model="method" @checked(old('method', $payment->method) === $k) class="mt-1"><span><span class="block text-sm font-semibold">{{ $m['label'] }}</span><span class="block text-xs text-muted">{{ $m['hint'] }}</span></span></label>
                     @endforeach
                 </div>
             </x-field>
-            <x-field label="Reference" name="reference" class="sm:col-span-2" hint="Transfer reference, cheque number, or who you handed the cash to."><input id="reference" name="reference" value="{{ old('reference') }}" class="input"></x-field>
-            <div class="sm:col-span-2">
+            <x-field label="Reference" name="reference" class="sm:col-span-2" x-show="method !== 'card'" hint="Transfer reference, cheque number, or who you handed the cash to."><input id="reference" name="reference" value="{{ old('reference') }}" class="input"></x-field>
+            <div class="sm:col-span-2" x-show="method !== 'card'">
                 <label for="proof" class="label"><span x-text="proofRequired ? 'Screenshot or PDF of the transfer' : 'Proof (optional)'">Proof</span><span x-show="proofRequired" class="text-red-700" aria-hidden="true"> *</span></label>
-                <input id="proof" name="proof" type="file" accept=".pdf,image/*" :required="proofRequired" class="file-input">
+                <input id="proof" name="proof" type="file" accept=".pdf,image/*" :required="proofRequired && method !== 'card'" x-bind:disabled="method === 'card'" class="file-input">
                 <p id="proof-hint" class="hint" x-text="(proofRequired ? 'Required for bank transfers. ' : 'A photo of the cheque or receipt helps us verify faster. ') + 'JPG, PNG, WebP or PDF, up to 10 MB.'">JPG, PNG, WebP or PDF, up to 10 MB.</p>
                 @error('proof')<p id="proof-error" class="error" role="alert">{{ $message }}</p>@enderror
             </div>
-            <x-field label="Anything we should know?" name="note" class="sm:col-span-2"><textarea id="note" name="note" rows="2" class="input">{{ old('note') }}</textarea></x-field>
-            <div class="flex gap-2 sm:col-span-2"><button class="btn btn-primary">Submit payment</button><a href="{{ route('portal.payments.index') }}" class="btn btn-light">Cancel</a></div>
+            <x-field label="Anything we should know?" name="note" class="sm:col-span-2" x-show="method !== 'card'"><textarea id="note" name="note" rows="2" class="input">{{ old('note') }}</textarea></x-field>
+            <div class="rounded-xl bg-brand-50 p-4 text-sm text-brand-900 ring-1 ring-brand-100 sm:col-span-2" x-show="method === 'card'" x-cloak>
+                <p x-show="card" class="font-semibold">You will pay <span x-text="card?.amount"></span>, the open balance on this invoice, on WiPay's secure page, then come straight back here.</p>
+                <p x-show="!card">Choose an invoice above to pay it by card.</p>
+            </div>
+            <div class="flex gap-2 sm:col-span-2"><button class="btn btn-primary" x-bind:disabled="method === 'card' && !card" x-text="method === 'card' ? 'Continue to secure card payment' : 'Submit payment'">Submit payment</button><a href="{{ route('portal.payments.index') }}" class="btn btn-light">Cancel</a></div>
         </form>
         {{-- On phones the bank details come first: people need them before they pay. --}}
         <aside class="order-first space-y-6 lg:order-none">
