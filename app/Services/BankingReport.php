@@ -17,7 +17,7 @@ class BankingReport
     public function build(?Carbon $asOf = null, bool $includeUnconsented = false): array
     {
         $asOf = $asOf ?? now();
-        $all = Contract::with('client', 'invoices', 'payments')->whereNotIn('status', ['draft', 'cancelled'])->orderBy('start_date')->get();
+        $all = Contract::with('client', 'invoices.payments', 'payments')->whereNotIn('status', ['draft', 'cancelled'])->orderBy('start_date')->get();
         $excluded = $all->filter(fn (Contract $c) => $c->confidential || ! $c->client->hasDisclosureConsent());
         $included = $includeUnconsented ? $all->reject(fn (Contract $c) => $c->confidential) : $all->diff($excluded);
 
@@ -32,14 +32,14 @@ class BankingReport
 
         $summaries = $included->map(fn (Contract $c) => ['reference' => $c->reference, 'client' => $c->client->company, 'status' => $c->statusName(), 'currency' => $c->currency] + $c->finance()->summary())->values();
 
-        $invoices = Invoice::with('client', 'contract')->whereIn('contract_id', $included->pluck('id'))->whereNotIn('status', ['draft', 'cancelled'])->orderBy('issue_date')->get();
+        $invoices = Invoice::with('client', 'contract', 'payments')->whereIn('contract_id', $included->pluck('id'))->whereNotIn('status', ['draft', 'cancelled'])->orderBy('issue_date')->get();
         $receivables = $invoices->map(fn (Invoice $i) => [
             'invoice' => $i->reference, 'contract' => $i->contract?->reference, 'client' => $i->client->company, 'issued' => $i->issue_date->toDateString(), 'due' => $i->due_date?->toDateString(),
             'total' => (float) $i->total, 'collected' => $i->paidAmount(), 'balance' => $i->balance(), 'status' => $i->statusName(), 'currency' => $i->currency,
             'days_to_pay' => $i->paid_at ? (int) $i->issue_date->diffInDays($i->paid_at) : null,
         ])->values();
 
-        $payments = Payment::with('client', 'contract', 'invoice')->whereIn('contract_id', $included->pluck('id'))->where('status', 'verified')->orderBy('paid_on')->get()->map(fn (Payment $p) => [
+        $payments = Payment::with('client', 'contract', 'invoice')->whereIn('contract_id', $included->pluck('id'))->where('status', 'verified')->where('method', '!=', 'credit_note')->orderBy('paid_on')->get()->map(fn (Payment $p) => [
             'date' => $p->paid_on->toDateString(), 'client' => $p->client->company, 'contract' => $p->contract?->reference, 'invoice' => $p->invoice?->reference, 'method' => $p->methodName(), 'reference' => $p->reference, 'amount' => (float) $p->amount, 'currency' => $p->currency, 'verified_at' => $p->verified_at?->toDateTimeString(),
         ])->values();
 

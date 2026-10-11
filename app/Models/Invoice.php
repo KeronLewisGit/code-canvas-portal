@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Carbon;
 
 /**
@@ -101,6 +102,12 @@ class Invoice extends Model
         return $days <= 0 ? 'Due on receipt' : 'Net '.$days;
     }
 
+    /** @return MorphMany<ActivityLog, $this> */
+    public function activity(): MorphMany
+    {
+        return $this->morphMany(ActivityLog::class, 'subject')->latest();
+    }
+
     /** Verified payments that name this invoice, plus contract-level payments applied to it (see Contract::creditAllocation). */
     public function paidAmount(): float
     {
@@ -112,6 +119,10 @@ class Invoice extends Model
     /** Verified payments made against this invoice specifically. */
     public function directPaidAmount(): float
     {
+        if ($this->relationLoaded('payments')) {
+            return (float) $this->payments->where('status', 'verified')->sum('amount');
+        }
+
         return LedgerCache::remember('invoice-paid:'.$this->id, fn () => (float) $this->payments()->where('status', 'verified')->sum('amount'));
     }
 

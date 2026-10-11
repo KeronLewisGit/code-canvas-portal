@@ -63,6 +63,9 @@
             </header>
             <main id="main" class="flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
                 <div class="mx-auto max-w-6xl">
+                    @if (\App\Http\Controllers\Admin\ClientPreviewController::active())
+                        <div role="status" class="no-print mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-ink px-4 py-3 text-sm text-white"><span><span class="font-semibold">Preview:</span> you are seeing the portal as {{ $user->name }} ({{ $user->client?->company }}) sees it. Nothing can be changed here.</span><form method="post" action="{{ route('preview.stop') }}">@csrf<button class="btn btn-light btn-sm">Back to admin</button></form></div>
+                    @endif
                     @if (session('saved'))<div role="status" class="no-print mb-5 flex items-start gap-3 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900 ring-1 ring-emerald-200"><span aria-hidden="true">✓</span><span>{{ session('saved') }}</span></div>@endif
                     @if (session('warning'))<div role="alert" class="no-print mb-5 flex items-start gap-3 rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 ring-1 ring-amber-200"><span aria-hidden="true">!</span><span>{{ session('warning') }}</span></div>@endif
                     @if ($user->usesIssuedPassword() && ! request()->routeIs('account'))

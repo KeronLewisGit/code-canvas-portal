@@ -21,7 +21,7 @@
                     @if ($quotation->declined_at)<div>Declined {{ $quotation->declined_at->format('j M Y') }}</div>@endif
                     @if ($quotation->valid_until)<div>Valid until {{ $quotation->valid_until->format('j M Y') }}</div>@endif
                 </dl>
-                <form method="post" action="{{ route('admin.quotations.status', $quotation) }}" class="mt-4 flex gap-2" onsubmit="return !['declined', 'expired'].includes(this.status.value) || confirm('Mark this quotation ' + this.status.value + '? The client can no longer accept it.')">@csrf @method('patch')
+                <form method="post" action="{{ route('admin.quotations.status', $quotation) }}" class="mt-4 flex gap-2" data-confirm-field="status" data-confirm-map="{{ json_encode(['declined' => 'Mark this quotation declined? The client can no longer accept it.', 'expired' => 'Mark this quotation expired? The client can no longer accept it.', 'accepted' => 'Record that the client accepted? The contract is generated from it.']) }}">@csrf @method('patch')
                     <select name="status" aria-label="Quotation status" class="input">@foreach (config('company.quotation_statuses') as $k => $v)<option value="{{ $k }}" @selected($quotation->status === $k)>{{ $v }}</option>@endforeach</select>
                     <button class="btn btn-light">Update</button>
                 </form>

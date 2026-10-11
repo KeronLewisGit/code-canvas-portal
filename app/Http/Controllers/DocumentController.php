@@ -47,7 +47,12 @@ class DocumentController extends Controller
         $charges = $client->invoices()->whereNotIn('status', ['draft', 'cancelled'])->get()
             ->map(fn (Invoice $i) => ['date' => $i->issue_date, 'currency' => $i->currency, 'ref' => $i->reference, 'text' => $i->title, 'charge' => (float) $i->total, 'credit' => 0.0]);
         $credits = $client->payments()->where('status', 'verified')->with('invoice', 'contract')->get()
-            ->map(fn ($p) => ['date' => $p->paid_on, 'currency' => $p->currency, 'ref' => $p->invoice?->reference ?? $p->contract?->reference ?? '', 'text' => 'Payment received · '.$p->methodName(), 'charge' => 0.0, 'credit' => (float) $p->amount]);
+            ->map(fn ($p) => ['date' => $p->paid_on, 'currency' => $p->currency, 'ref' => $p->invoice?->reference ?? $p->contract?->reference ?? '',
+                'text' => match ($p->method) {
+                    'credit_note' => 'Credit note · '.$p->note, 'refund' => 'Refund to you', default => 'Payment received · '.$p->methodName()
+                },
+                // A refund is money going back to the client, so it raises the balance like a charge.
+                'charge' => (float) $p->amount < 0 ? abs((float) $p->amount) : 0.0, 'credit' => max(0, (float) $p->amount)]);
 
         $sections = $charges->concat($credits)->sortBy(fn ($r) => [$r['date']->timestamp, $r['charge'] > 0 ? 0 : 1])->groupBy('currency')
             ->map(function ($rows) {

@@ -97,7 +97,11 @@ document.addEventListener('change', (e) => {
  */
 document.addEventListener('submit', (e) => {
     const form = e.target;
-    const message = e.submitter?.dataset.confirm ?? form.dataset.confirm;
+    let message = e.submitter?.dataset.confirm ?? form.dataset.confirm;
+    if (!message && form.dataset.confirmMap) {
+        // e.g. a status select: only some choices need a confirmation, each with its own wording.
+        message = JSON.parse(form.dataset.confirmMap)[form.elements[form.dataset.confirmField]?.value];
+    }
     if (message && !e.defaultPrevented && !window.confirm(message)) {
         e.preventDefault();
         return;
@@ -112,6 +116,17 @@ document.addEventListener('submit', (e) => {
     }
     setTimeout(() => form.querySelectorAll('button[type=submit], button:not([type])').forEach((b) => { b.disabled = true; b.setAttribute('aria-busy', 'true'); }), 0);
 });
+// Links that need a confirmation (e.g. editing an invoice the client already has).
+document.addEventListener('click', (e) => {
+    const link = e.target.closest('a[data-confirm]');
+    if (link && !window.confirm(link.dataset.confirm)) e.preventDefault();
+});
+
+// Links that open a new tab say so to screen readers.
+document.querySelectorAll('a[target="_blank"]').forEach((a) => {
+    if (!a.querySelector('.sr-only')) a.insertAdjacentHTML('beforeend', '<span class="sr-only"> (opens in a new tab)</span>');
+});
+
 // Pages restored from the back/forward cache come back with their buttons usable again.
 window.addEventListener('pageshow', (e) => {
     if (!e.persisted) return;

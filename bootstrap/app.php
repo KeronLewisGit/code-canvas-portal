@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\EnsureActiveClient;
 use App\Http\Middleware\EnsureRole;
+use App\Http\Middleware\PreviewReadOnly;
 use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -15,7 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias(['role' => EnsureRole::class]);
-        $middleware->web(append: [EnsureActiveClient::class]);
+        $middleware->web(append: [EnsureActiveClient::class, PreviewReadOnly::class]);
         $middleware->append(SecurityHeaders::class);
         $middleware->redirectGuestsTo(fn () => route('login'));
         $middleware->redirectUsersTo(fn () => route('home'));

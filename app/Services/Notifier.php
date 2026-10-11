@@ -66,6 +66,24 @@ class Notifier
             $ok ? 'View payment' : 'Submit again', $ok ? route('portal.payments.show', $p) : route('portal.payments.create', array_filter(['invoice' => $p->invoice_id, 'contract' => $p->contract_id]))));
     }
 
+    public function creditNoteIssued(Payment $credit): void
+    {
+        $i = $credit->invoice;
+        $this->client($credit->client, new PortalMail('Credit of '.money($credit->amount, $credit->currency).' applied to invoice '.$i->reference, [
+            'We have applied a credit of '.money($credit->amount, $credit->currency).' to invoice '.$i->reference.' ("'.$i->title.'").',
+            'Reason: '.$credit->note,
+            $i->balance() > 0 ? 'The balance is now '.money($i->balance(), $i->currency).'.' : 'Nothing is left to pay on this invoice.',
+        ], 'View the invoice', route('portal.invoices.show', $i)));
+    }
+
+    public function refundIssued(Payment $refund): void
+    {
+        $this->client($refund->client, new PortalMail('Refund of '.money(abs((float) $refund->amount), $refund->currency), [
+            'We have refunded '.money(abs((float) $refund->amount), $refund->currency).' to you. '.$refund->note,
+            'It appears in your payment history and on your statement of account.',
+        ], 'View your payments', route('portal.payments.index')));
+    }
+
     public function contractSentForSignature(Contract $c, ?string $note = null, bool $notifyAdmins = true): void
     {
         $this->client($c->client, new PortalMail('Contract '.$c->reference.' is ready to sign', array_values(array_filter([$note, 'The agreement "'.$c->title.'" ('.$c->amountLabel().') is ready for your signature.', 'Read it in your portal, then sign electronically in under a minute. '.self::workStarts($c)])), 'Read and sign the contract', route('portal.contracts.show', $c)));
@@ -118,18 +136,50 @@ class Notifier
     /** Manual or scheduled nudge. Stamps reminded_at and writes to the audit log only when the email actually went out; null otherwise. */
     public function remind(Invoice|Quotation|Contract $doc, ?User $by = null): ?string
     {
-        [$subject, $lines, $label, $url] = match (true) {
-            $doc instanceof Invoice => ['Reminder: invoice '.$doc->reference.' has '.money($doc->balance(), $doc->currency).' outstanding', ['A friendly reminder that invoice '.$doc->reference.' ("'.$doc->title.'") has a balance of '.money($doc->balance(), $doc->currency).($doc->due_date ? (Invoice::dateHasPassed($doc->due_date) ? ', which was due on ' : ', due on ').$doc->due_date->format('j F Y') : '').'.', 'Pay by bank transfer, cheque or cash and submit the payment in your portal so we can confirm it. If you have already paid and submitted it in the portal, you can ignore this reminder.'], 'View and pay the invoice', route('portal.invoices.show', $doc)],
-            $doc instanceof Quotation => ['Reminder: quotation '.$doc->reference.' is waiting for your answer', ['Quotation '.$doc->reference.' ("'.$doc->title.'", '.money($doc->total, $doc->currency).') is still open'.($doc->valid_until ? ' and is valid until '.$doc->valid_until->format('j F Y') : '').'.', 'Accept or decline it in your portal, or reply if you would like any changes.'], 'Review the quotation', route('portal.quotations.show', $doc)],
-            default => ['Reminder: contract '.$doc->reference.' is waiting for your signature', ['The agreement "'.$doc->title.'" is ready to sign in your portal. '.self::workStarts($doc)], 'Read and sign the contract', route('portal.contracts.show', $doc)],
+        $mail = match (true) {
+            $doc instanceof Invoice => $this->invoiceReminder($doc),
+            $doc instanceof Quotation => $this->quotationReminder($doc),
+            default => $this->contractReminder($doc),
         };
-        if (! $this->client($doc->client, new PortalMail($subject, $lines, $label, $url))) {
+        if (! $this->client($doc->client, $mail)) {
             return null;
         }
         $doc->forceFill(['reminded_at' => now()])->save();
         Audit::log($doc, 'reminder_sent', ['by' => $by?->name ?? 'scheduler']);
 
-        return $subject;
+        return $mail->subject;
+    }
+
+    private function invoiceReminder(Invoice $invoice): PortalMail
+    {
+        $balance = money($invoice->balance(), $invoice->currency);
+        $due = match (true) {
+            ! $invoice->due_date => '',
+            Invoice::dateHasPassed($invoice->due_date) => ', which was due on '.$invoice->due_date->format('j F Y'),
+            default => ', due on '.$invoice->due_date->format('j F Y'),
+        };
+
+        return new PortalMail('Reminder: invoice '.$invoice->reference.' has '.$balance.' outstanding', [
+            'A friendly reminder that invoice '.$invoice->reference.' ("'.$invoice->title.'") has a balance of '.$balance.$due.'.',
+            'Pay by bank transfer, cheque or cash and submit the payment in your portal so we can confirm it. If you have already paid and submitted it in the portal, you can ignore this reminder.',
+        ], 'View and pay the invoice', route('portal.invoices.show', $invoice));
+    }
+
+    private function quotationReminder(Quotation $quotation): PortalMail
+    {
+        $validity = $quotation->valid_until ? ' and is valid until '.$quotation->valid_until->format('j F Y') : '';
+
+        return new PortalMail('Reminder: quotation '.$quotation->reference.' is waiting for your answer', [
+            'Quotation '.$quotation->reference.' ("'.$quotation->title.'", '.money($quotation->total, $quotation->currency).') is still open'.$validity.'.',
+            'Accept or decline it in your portal, or reply if you would like any changes.',
+        ], 'Review the quotation', route('portal.quotations.show', $quotation));
+    }
+
+    private function contractReminder(Contract $contract): PortalMail
+    {
+        return new PortalMail('Reminder: contract '.$contract->reference.' is waiting for your signature', [
+            'The agreement "'.$contract->title.'" is ready to sign in your portal. '.self::workStarts($contract),
+        ], 'Read and sign the contract', route('portal.contracts.show', $contract));
     }
 
     /**

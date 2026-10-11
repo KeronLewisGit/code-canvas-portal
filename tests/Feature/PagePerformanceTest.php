@@ -41,7 +41,9 @@ class PagePerformanceTest extends TestCase
             [$admin, route('admin.dashboard'), 55],
             [$admin, route('admin.invoices.index'), 30],
             [$admin, route('admin.payments.create'), 35],
-            [$admin, route('admin.reports.revenue'), 35],
+            [$admin, route('admin.reports.revenue'), 25],
+            [$admin, route('admin.reports.banking'), 40],
+            [$admin, route('admin.clients.index'), 30],
             [$admin, route('admin.clients.show', $client), 50],
         ];
         foreach ($budgets as [$who, $url, $max]) {

@@ -1,0 +1,49 @@
+# Runs on every push and pull request. A red cross on GitHub means: do not deploy this commit.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'          # matches Hostinger and the composer.lock platform
+          extensions: mbstring, pdo_sqlite, fileinfo, gd
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install PHP packages
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare the app
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Built CSS/JS are up to date
+        # public/build is committed (the server has no Node). If resources/css or resources/js changed without
+        # `npm run build`, the live site would serve stale styles: rebuild here and fail if anything differs.
+        run: |
+          npm ci --ignore-scripts
+          npm run build
+          git status --porcelain public/build
+          test -z "$(git status --porcelain public/build)" || (echo "::error::Run npm run build and commit public/build" && exit 1)
+
+      - name: Code style (Pint)
+        run: vendor/bin/pint --test
+
+      - name: Static analysis (PHPStan)
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
+
+      - name: Tests
+        run: php artisan test

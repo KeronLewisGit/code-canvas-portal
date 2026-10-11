@@ -88,7 +88,23 @@
             </section>
             <section class="card text-sm">
                 <h2 class="text-lg font-bold">Financials</h2>
-                @if (($credit = $contract->unallocatedCredit()) > 0)<p class="mt-3 rounded-xl bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-900">Credit on account: {{ money($credit, $contract->currency) }} <span class="font-normal">(applied to the next invoice)</span></p>@endif
+                @php($refundable = \App\Services\Adjustments::refundableOnContract($contract))
+                @if ($refundable > 0)
+                    <div class="mt-3 rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-900">
+                        <p class="font-semibold">Credit on account: {{ money($refundable, $contract->currency) }} <span class="font-normal">(applied to the next invoice unless refunded)</span></p>
+                        @php($refundUrl = route('admin.contracts.refund', $contract))
+                        <details class="mt-1" @if ($errors->has('refund_amount')) open @endif><summary class="cursor-pointer font-semibold">Refund it</summary>
+                        <form method="post" action="{{ $refundUrl }}" class="mt-2 space-y-2" data-confirm="Record this refund and email the client?">@csrf
+                            <div class="grid grid-cols-2 gap-2">
+                                <x-field label="Amount" name="refund_amount" required><input id="refund_amount" name="refund_amount" type="number" step="0.01" min="0.01" max="{{ $refundable }}" value="{{ old('refund_amount', $refundable) }}" required class="input"></x-field>
+                                <x-field label="Paid back by" name="refund_method" required><select id="refund_method" name="refund_method" class="input"><option>bank transfer</option><option>cheque</option><option>cash</option></select></x-field>
+                            </div>
+                            <x-field label="Note (optional)" name="refund_note"><input id="refund_note" name="refund_note" value="{{ old('refund_note') }}" class="input" placeholder="e.g. transfer reference"></x-field>
+                            <button class="btn btn-light btn-sm">Record refund</button>
+                        </form>
+                        </details>
+                    </div>
+                @endif
                 @if (! $contract->isRecurring() && in_array($contract->status, ['active', 'completed']) && ($finance['remaining_value'] ?? 0) > 0 && $contract->invoices->where('status', '!=', 'cancelled')->isNotEmpty())
                     <div class="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900"><p class="font-semibold">{{ money($finance['remaining_value'], $contract->currency) }} not invoiced yet.</p><a href="{{ route('admin.invoices.create', ['contract' => $contract->id, 'kind' => 'balance']) }}" class="btn btn-light btn-sm mt-2">Create balance invoice</a></div>
                 @endif
@@ -142,7 +158,7 @@
                 @if ($contract->quotations->isNotEmpty())<p class="mt-4 text-xs text-muted">From quotation {{ $contract->quotations->pluck('reference')->implode(', ') }}</p>@endif
             </section>
             <section class="card text-sm">
-                <div class="flex items-center justify-between"><h2 class="text-lg font-bold">History</h2><a href="{{ route('admin.contracts.activity', $contract) }}" class="text-sm font-semibold text-brand-700">Full audit log</a></div>
+                <x-card-header title="History"><a href="{{ route('admin.contracts.activity', $contract) }}" class="text-sm font-semibold text-brand-700 hover:underline">Full audit log</a></x-card-header>
                 @if ($contract->versions->isNotEmpty())
                     <p class="eyebrow mt-3">Previous versions</p>
                     <ul class="mt-1 space-y-1">@foreach ($contract->versions as $v)<li><a href="{{ route('admin.contracts.version', [$contract, $v->version]) }}" class="font-semibold text-brand-700 hover:underline">Version {{ $v->version }}</a> <span class="text-muted">· {{ $v->created_at->format('j M Y') }}{{ $v->reason ? ' · '.$v->reason : '' }}</span></li>@endforeach</ul>

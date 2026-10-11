@@ -23,6 +23,7 @@ Route::middleware('guest')->group(function () {
 
 Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+    Route::post('/preview/stop', [Admin\ClientPreviewController::class, 'stop'])->name('preview.stop');
     Route::get('/account', [PasswordController::class, 'edit'])->name('account');
     Route::patch('/account/password', [PasswordController::class, 'change'])->name('account.password');
 
@@ -45,6 +46,7 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::post('clients/{client}/users', [Admin\ClientUserController::class, 'store'])->name('clients.users.store');
     Route::patch('clients/{client}/users/{user}', [Admin\ClientUserController::class, 'update'])->name('clients.users.update');
     Route::delete('clients/{client}/users/{user}', [Admin\ClientUserController::class, 'destroy'])->name('clients.users.destroy');
+    Route::post('clients/{client}/preview', [Admin\ClientPreviewController::class, 'start'])->name('clients.preview');
 
     Route::resource('contracts', Admin\ContractController::class);
     Route::patch('contracts/{contract}/signature', [Admin\ContractController::class, 'signature'])->name('contracts.signature');
@@ -71,6 +73,10 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::resource('invoices', Admin\InvoiceController::class);
     Route::patch('invoices/{invoice}/status', [Admin\InvoiceController::class, 'status'])->name('invoices.status');
     Route::post('invoices/{invoice}/remind', [Admin\InvoiceController::class, 'remind'])->middleware('throttle:20,1')->name('invoices.remind');
+    Route::post('invoices/{invoice}/credit-note', [Admin\AdjustmentController::class, 'creditNote'])->name('invoices.credit');
+    Route::post('invoices/{invoice}/late-fee', [Admin\AdjustmentController::class, 'lateFee'])->name('invoices.late-fee');
+    Route::post('invoices/{invoice}/refund', [Admin\AdjustmentController::class, 'refundInvoice'])->name('invoices.refund');
+    Route::post('contracts/{contract}/refund', [Admin\AdjustmentController::class, 'refundContract'])->name('contracts.refund');
 
     Route::get('payments', [Admin\PaymentController::class, 'index'])->name('payments.index');
     Route::get('payments/create', [Admin\PaymentController::class, 'create'])->name('payments.create');

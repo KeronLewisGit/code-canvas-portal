@@ -11,7 +11,7 @@
         <button class="sr-only focus:not-sr-only btn btn-light">Apply filters</button>
     </form>
     <div class="card overflow-x-auto p-0 sm:p-0">
-        <table class="table min-w-[640px]"><thead><tr><th>Contract</th><th>Client</th><th>Type</th><th>Dates</th><th>Status</th><th>Paid</th><th class="num">Amount</th></tr></thead><tbody>
+        <table class="table min-w-[640px]"><thead><tr><th>Contract</th><th>Client</th><th>Type</th><x-sort-th column="start" label="Dates" /><th>Status</th><th>Paid</th><x-sort-th column="amount" label="Amount" :num="true" /></tr></thead><tbody>
             @forelse ($contracts as $c)<tr>
                 <td><a href="{{ route('admin.contracts.show', $c) }}" class="font-semibold hover:text-brand-700">{{ $c->title }}</a><span class="block text-xs text-muted">{{ $c->reference }}</span></td>
                 <td><a href="{{ route('admin.clients.show', $c->client) }}" class="hover:text-brand-700">{{ $c->client->company }}</a></td>

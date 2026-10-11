@@ -3,6 +3,7 @@
         <x-slot:actions>
             <a href="{{ route('admin.clients.edit', $client) }}" class="btn btn-light">Edit</a>
             <a href="{{ route('documents.statement', $client) }}" target="_blank" class="btn btn-light">Statement</a>
+            @if ($client->active && $client->users->isNotEmpty())<form method="post" action="{{ route('admin.clients.preview', $client) }}">@csrf<button class="btn btn-light">Preview as client</button></form>@endif
             <a href="{{ route('admin.quotations.create', ['client' => $client->id]) }}" class="btn btn-light">New quotation</a>
             <a href="{{ route('admin.invoices.create', ['client' => $client->id]) }}" class="btn btn-light">New invoice</a>
             <a href="{{ route('admin.contracts.create', ['client' => $client->id]) }}" class="btn btn-primary">New contract</a>
@@ -87,7 +88,7 @@
             {{-- Payments only make sense once a contract has been invoiced; recorded payments always stay visible. --}}
             @if ($client->payments->isNotEmpty() || $client->invoices->contains(fn ($i) => $i->contract_id && ! in_array($i->status, ['draft', 'cancelled'])))
                 <section class="card overflow-x-auto">
-                    <div class="flex items-center justify-between"><h2 class="text-lg font-bold">Payments</h2><a href="{{ route('admin.payments.create', ['client' => $client->id]) }}" class="btn btn-light btn-sm">Record a payment</a></div>
+                    <x-card-header title="Payments"><a href="{{ route('admin.payments.create', ['client' => $client->id]) }}" class="btn btn-light btn-sm">Record a payment</a></x-card-header>
                     <table class="table mt-4"><thead><tr><th>Date</th><th>Method</th><th>For</th><th>Status</th><th class="num">Amount</th></tr></thead><tbody>
                         @forelse ($client->payments as $p)<tr><td class="whitespace-nowrap"><a href="{{ route('admin.payments.show', $p) }}" class="font-semibold hover:text-brand-700">{{ $p->paid_on->format('j M Y') }}</a></td><td>{{ $p->methodName() }}</td><td class="text-xs">{{ $p->invoice?->reference ?? $p->contract?->reference ?? '—' }}</td><td><x-badge :status="$p->status" /></td><td class="num font-semibold">{{ money($p->amount, $p->currency) }}</td></tr>
                         @empty<tr><td colspan="5" class="text-muted">No payments yet.</td></tr>@endforelse

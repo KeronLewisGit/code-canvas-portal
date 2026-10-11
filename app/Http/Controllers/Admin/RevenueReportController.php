@@ -13,7 +13,7 @@ class RevenueReportController extends Controller
 {
     public function __invoke(Request $request): View
     {
-        $contracts = Contract::with('client', 'invoices', 'payments', 'renewals')
+        $contracts = Contract::with('client', 'invoices.payments', 'payments', 'renewals')
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status), fn ($q) => $q->whereNotIn('status', ['draft', 'cancelled']))
             ->when($request->filled('type'), fn ($q) => $q->where('type', $request->type))
             ->when($request->filled('cycle'), fn ($q) => $q->where('billing_cycle', $request->cycle))

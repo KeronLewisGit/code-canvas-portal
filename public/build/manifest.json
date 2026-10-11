@@ -60,7 +60,7 @@
     "src": "_rubik-700-normal-KHOtubUA.woff"
   },
   "resources/css/app.css": {
-    "file": "assets/app-DUnQTxxM.css",
+    "file": "assets/app-DUXob8Pb.css",
     "name": "app",
     "names": [
       "app.css"
@@ -78,7 +78,7 @@
     "isEntry": true
   },
   "resources/js/app.js": {
-    "file": "assets/app-DoRT_QMK.js",
+    "file": "assets/app-EXLXrmpY.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true

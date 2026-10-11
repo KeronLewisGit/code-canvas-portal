@@ -130,6 +130,9 @@ return [
         'cheque' => ['label' => 'Cheque', 'proof' => false, 'hint' => 'Enter the cheque number as the reference.'],
         // Recorded by an admin when an invoice is marked paid by hand; never offered to clients.
         'other' => ['label' => 'Settled outside the portal', 'proof' => false, 'hint' => 'Recorded by Code Canvas.', 'admin_only' => true],
+        // Adjustments: a credit note reduces what is owed (not money received); a refund is money paid back (negative).
+        'credit_note' => ['label' => 'Credit note', 'proof' => false, 'hint' => 'Reduces the amount owed.', 'admin_only' => true, 'adjustment' => true],
+        'refund' => ['label' => 'Refund', 'proof' => false, 'hint' => 'Money paid back to the client.', 'admin_only' => true],
     ],
     'payment_statuses' => ['pending' => 'Awaiting verification', 'verified' => 'Verified', 'rejected' => 'Rejected'],
 

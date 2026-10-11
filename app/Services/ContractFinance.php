@@ -14,7 +14,7 @@ use Illuminate\Support\Collection;
  * Definitions (also printed on reports):
  * - contracted value: one-off price, or cycle price x cycles in the term. Open-ended recurring contracts have no finite value.
  * - invoiced: total of invoices on the contract that are not draft or cancelled.
- * - collected: verified payments on the contract.
+ * - collected: verified payments on the contract, net of refunds; credit notes are not money received.
  * - receivable: invoiced minus collected, never below zero. Overdue is the part of that on invoices past their due date.
  * - remaining value: contracted value minus invoiced (what can still be billed).
  * - forecast: cycle starts in the next 12 months for live contracts, plus any un-invoiced remainder of live one-off contracts.
@@ -64,10 +64,10 @@ class ContractFinance
     {
         $c = $this->contract;
         if ($c->relationLoaded('payments')) {
-            return (float) $c->payments->where('status', 'verified')->sum('amount');
+            return (float) $c->payments->where('status', 'verified')->where('method', '!=', 'credit_note')->sum('amount');
         }
 
-        return $c->paidAmount();
+        return (float) $c->payments()->where('status', 'verified')->where('method', '!=', 'credit_note')->sum('amount');
     }
 
     public function receivable(): float
@@ -159,7 +159,15 @@ class ContractFinance
         return $out;
     }
 
+    /** @var array<string, mixed>|null */
+    private ?array $summaryCache = null;
+
     public function summary(): array
+    {
+        return $this->summaryCache ??= $this->computeSummary();
+    }
+
+    private function computeSummary(): array
     {
         $forecast = $this->forecast();
 
