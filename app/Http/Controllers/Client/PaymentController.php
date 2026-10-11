@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
-use App\Models\Contract;
 use App\Models\Payment;
 use App\Services\Notifier;
 use Illuminate\Http\RedirectResponse;
@@ -14,16 +13,25 @@ use Illuminate\View\View;
 
 class PaymentController extends Controller
 {
-    public function index(Request $request): View
-    {
-        return view('portal.payments.index', ['payments' => $request->user()->client->payments()->with('contract', 'invoice')->get()]);
-    }
-
-    public function create(Request $request): View
+    public function index(Request $request): View|RedirectResponse
     {
         $client = $request->user()->client;
-        $contracts = $client->contracts()->whereIn('status', Contract::PAYABLE_STATUSES)->get();
-        $invoices = $client->invoices()->whereIn('status', ['sent', 'partial'])->get();
+        $payments = $client->payments()->with('contract', 'invoice')->get();
+        if ($payments->isEmpty() && ! $client->hasPayables()) {
+            return $this->nothingToPay();
+        }
+
+        return view('portal.payments.index', ['payments' => $payments, 'canPay' => $client->hasPayables()]);
+    }
+
+    public function create(Request $request): View|RedirectResponse
+    {
+        $client = $request->user()->client;
+        $contracts = $client->payableContracts();
+        $invoices = $client->payableInvoices();
+        if ($contracts->isEmpty() && $invoices->isEmpty()) {
+            return $this->nothingToPay();
+        }
         $invoice = $request->filled('invoice') ? $invoices->firstWhere('id', $request->integer('invoice')) : null;
         $contract = $request->filled('contract') ? $contracts->firstWhere('id', $request->integer('contract')) : $invoice?->contract;
 
@@ -37,19 +45,28 @@ class PaymentController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $client = $request->user()->client;
+        $contracts = $client->payableContracts();
+        $invoices = $client->payableInvoices();
+        if ($contracts->isEmpty() && $invoices->isEmpty()) {
+            return $this->nothingToPay();
+        }
         $data = $request->validate([
-            'contract_id' => ['nullable', Rule::exists('contracts', 'id')->where('client_id', $client->id)->whereIn('status', Contract::PAYABLE_STATUSES)],
-            'invoice_id' => ['nullable', Rule::exists('invoices', 'id')->where('client_id', $client->id)->whereIn('status', ['sent', 'partial'])],
+            'contract_id' => ['nullable', Rule::in($contracts->modelKeys())],
+            'invoice_id' => ['nullable', Rule::in($invoices->modelKeys())],
             'amount' => ['required', 'numeric', 'min:0.01', 'max:99999999'],
             'method' => ['required', 'in:'.implode(',', array_keys(config('company.payment_methods')))],
             'paid_on' => ['required', 'date', 'before_or_equal:today'],
             'reference' => ['nullable', 'string', 'max:160'],
             'note' => ['nullable', 'string', 'max:2000'],
             'proof' => [Rule::requiredIf(fn () => Payment::methodNeedsProof($request->input('method', ''))), 'nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
-        ], ['proof.required' => 'Bank transfers need a screenshot or PDF of the transfer confirmation.']);
+        ], [
+            'proof.required' => 'Bank transfers need a screenshot or PDF of the transfer confirmation.',
+            'contract_id.in' => 'That contract is not open for payment.',
+            'invoice_id.in' => 'That invoice is not open for payment.',
+        ]);
 
-        $invoice = ! empty($data['invoice_id']) ? $client->invoices()->find($data['invoice_id']) : null;
-        $contract = ! empty($data['contract_id']) ? $client->contracts()->find($data['contract_id']) : null;
+        $invoice = ! empty($data['invoice_id']) ? $invoices->find($data['invoice_id']) : null;
+        $contract = ! empty($data['contract_id']) ? $contracts->find($data['contract_id']) : null;
         if (! $invoice && ! $contract) {
             throw ValidationException::withMessages(['contract_id' => 'Choose the contract or invoice this payment is for.']);
         }
@@ -58,6 +75,12 @@ class PaymentController extends Controller
         }
         // An invoice always decides the contract and currency so a payment can never credit the wrong contract.
         $target = $invoice ?? $contract;
+        $owed = $target->balance() - (float) $target->payments()->where('status', 'pending')->sum('amount');
+        if ((float) $data['amount'] > round($owed, 2) + 0.005) {
+            throw ValidationException::withMessages(['amount' => $owed > 0
+                ? 'That is more than the '.money($owed, $target->currency).' still owed on '.$target->reference.' (after payments already waiting to be verified).'
+                : 'Payments already waiting to be verified cover what is owed on '.$target->reference.'. We will update your balance once they are checked.']);
+        }
         $data['contract_id'] = $invoice ? $invoice->contract_id : $contract->id;
         unset($data['proof']);
 
@@ -78,5 +101,10 @@ class PaymentController extends Controller
         $this->authorizeView($payment);
 
         return view('portal.payments.show', ['payment' => $payment->load('contract', 'invoice')]);
+    }
+
+    private function nothingToPay(): RedirectResponse
+    {
+        return redirect()->route('portal.dashboard')->with('warning', 'There is nothing to pay yet. Payment options appear once we send you a contract or an invoice.');
     }
 }

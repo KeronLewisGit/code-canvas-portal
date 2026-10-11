@@ -1,12 +1,17 @@
 <x-layout :title="$contract->reference">
-    <x-page :title="$contract->title" eyebrow="{{ $contract->reference }} · {{ $contract->typeName() }}{{ $contract->isRecurring() ? ' · '.$contract->cycleName() : '' }}" :back="[route('portal.contracts.index'), 'Contracts']">
+    <x-page :title="$contract->title" :eyebrow="($contract->reference).' · '.($contract->typeName()).($contract->isRecurring() ? ' · '.$contract->cycleName() : '')" :back="[route('portal.contracts.index'), 'Contracts']">
         <x-slot:actions>
-            <a href="{{ route('documents.contract', $contract) }}" target="_blank" class="btn btn-light">{{ $contract->isSigned() ? 'Download signed contract' : 'View contract PDF' }}</a>
-            @if ($contract->awaitingSignature())<a href="{{ route('portal.contracts.sign', $contract) }}" class="btn btn-dark">Sign contract</a>@endif
-            @if ($contract->acceptsPayments())<a href="{{ route('portal.payments.create', ['contract' => $contract->id]) }}" class="btn btn-primary">Submit a payment</a>@endif
+            <a href="{{ route('documents.contract', $contract) }}" target="_blank" class="btn btn-light">{{ $contract->isSigned() ? 'Download signed contract' : 'View PDF' }}</a>
+            @if ($contract->acceptsPayments() && ! \App\Services\ContractInvoicing::depositStatus($contract))<a href="{{ route('portal.payments.create', ['contract' => $contract->id]) }}" class="btn btn-primary">Submit a payment</a>@endif
         </x-slot:actions>
     </x-page>
     @if ($contract->awaitingSignature())<div class="callout mb-6"><p><span class="font-semibold">This contract is waiting for your signature.</span> Read it, then sign in the portal in under a minute.</p><a href="{{ route('portal.contracts.sign', $contract) }}" class="btn btn-primary">Sign now</a></div>@endif
+    @php($deposit = \App\Services\ContractInvoicing::depositStatus($contract))
+    @if ($deposit && ! $deposit['paid'])
+        <div class="callout mb-6"><p><span class="font-semibold">Deposit of {{ money($deposit['balance'], $contract->currency) }} outstanding.</span> Work usually starts once it is received.</p>@if ($deposit['invoice']->acceptsPayments())<a href="{{ route('portal.payments.create', ['invoice' => $deposit['invoice']->id]) }}" class="btn btn-primary">Pay the deposit</a>@endif</div>
+    @elseif ($deposit)
+        <p class="mb-6 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900 ring-1 ring-emerald-200">Deposit received. Thank you.</p>
+    @endif
     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <x-stat :label="$contract->isRecurring() ? 'Price per '.$contract->cycle()['per'] : 'Contract value'" :value="money($contract->amount, $contract->currency)" :sub="$contract->isRecurring() ? $contract->cycleName().' · '.money($contract->dueToDate(), $contract->currency).' due to date' : $contract->statusName()" />
         <x-stat label="Paid" :value="money($contract->paidAmount(), $contract->currency)" :sub="ucfirst($contract->paymentState())" />

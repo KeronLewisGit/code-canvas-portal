@@ -1,10 +1,15 @@
 <x-layout :title="$contract->reference">
-    <x-page :title="$contract->title" eyebrow="{{ $contract->reference }} · v{{ $contract->version }} · {{ $contract->typeName() }}{{ $contract->isRecurring() ? ' · '.$contract->cycleName() : '' }}" :back="[route('admin.contracts.index'), 'Contracts']">
+    <x-page :title="$contract->title" :eyebrow="($contract->reference).' · v'.($contract->version).' · '.($contract->typeName()).($contract->isRecurring() ? ' · '.$contract->cycleName() : '')" :back="[route('admin.contracts.index'), 'Contracts']">
         <x-slot:actions>
-            <a href="{{ route('documents.contract', $contract) }}" target="_blank" class="btn btn-light">Contract PDF</a>
+            <a href="{{ route('documents.contract', $contract) }}" target="_blank" class="btn btn-light">View PDF</a>
             <a href="{{ route('admin.contracts.edit', $contract) }}" class="btn btn-light">Edit</a>
-            <a href="{{ route('admin.invoices.create', ['contract' => $contract->id]) }}" class="btn btn-light">Invoice this</a>
-            <a href="{{ route('admin.payments.create', ['contract' => $contract->id]) }}" class="btn btn-primary">Record payment</a>
+            @php($deposit = \App\Services\ContractInvoicing::depositStatus($contract))
+            @if ($deposit && ($finance['remaining_value'] ?? 0) > 0)
+                <a href="{{ route('admin.invoices.create', ['contract' => $contract->id, 'kind' => 'balance']) }}" class="btn btn-light">Create balance invoice</a>
+            @else
+                <a href="{{ route('admin.invoices.create', ['contract' => $contract->id]) }}" class="btn btn-light">Invoice this</a>
+            @endif
+            <a href="{{ route('admin.payments.create', ['contract' => $contract->id]) }}" class="btn btn-light">Record a payment</a>
         </x-slot:actions>
     </x-page>
 
@@ -14,7 +19,7 @@
         @if ($contract->isSigned())<x-badge status="verified">Signed</x-badge>@elseif ($contract->awaitingSignature())<x-badge status="pending">Awaiting signature</x-badge>@endif
         @if ($contract->renewalOf)<span class="text-muted">Renewal of <a href="{{ route('admin.contracts.show', $contract->renewalOf) }}" class="font-semibold text-brand-700 hover:underline">{{ $contract->renewalOf->reference }}</a></span>@endif
         @if ($contract->renewals->isNotEmpty())<span class="text-muted">Renewed as @foreach ($contract->renewals as $r)<a href="{{ route('admin.contracts.show', $r) }}" class="font-semibold text-brand-700 hover:underline">{{ $r->reference }}</a>@if (! $loop->last), @endif @endforeach</span>@endif
-        @if ($contract->confidential)<x-badge status="slate">Confidential</x-badge>@endif
+        @if ($contract->confidential)<x-badge status="confidential" tone="tone-slate">Confidential</x-badge>@endif
     </div>
     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <x-stat :label="$contract->isRecurring() ? 'Price per '.$contract->cycle()['per'] : 'Contract value'" :value="money($contract->amount, $contract->currency)" :sub="$contract->isRecurring() ? $contract->cycleName().' · '.money($contract->dueToDate(), $contract->currency).' due to date' : $contract->statusName()" />
@@ -57,7 +62,7 @@
                 <div class="mt-4 flex flex-wrap gap-2">
                     @foreach ($actions as $action)
                         @if ($action === 'terminate') @continue @endif
-                        <form method="post" action="{{ route('admin.contracts.lifecycle', $contract) }}" @if (in_array($action, ['cancel', 'complete', 'reopen'])) onsubmit="return confirm({{ Js::from(['cancel' => 'Cancel this contract? The client will be emailed.', 'complete' => 'Mark this contract completed? The client will be emailed.', 'reopen' => 'Move this contract back to draft?'][$action]) }})" @endif>@csrf @method('patch')<input type="hidden" name="action" value="{{ $action }}"><button class="btn {{ in_array($action, ['approve', 'activate']) ? 'btn-primary' : 'btn-light' }} btn-sm">{{ ['approve' => 'Approve', 'activate' => 'Activate', 'complete' => 'Mark completed', 'cancel' => 'Cancel contract', 'reopen' => 'Back to draft'][$action] }}</button></form>
+                        <form method="post" action="{{ route('admin.contracts.lifecycle', $contract) }}" data-confirm="{{ ['approve' => 'Approve this contract? It stays hidden from the client until you send it for signature.', 'activate' => 'Activate this contract? The client will be emailed, and if it is signed its first invoice is issued.', 'cancel' => 'Cancel this contract? The client will be emailed.', 'complete' => 'Mark this contract completed? The client will be emailed.', 'reopen' => 'Move this contract back to draft?'][$action] ?? '' }}">@csrf @method('patch')<input type="hidden" name="action" value="{{ $action }}"><button class="btn {{ in_array($action, ['approve', 'activate']) ? 'btn-primary' : 'btn-light' }} btn-sm">{{ ['approve' => 'Approve', 'activate' => 'Activate', 'complete' => 'Mark completed', 'cancel' => 'Cancel contract', 'reopen' => 'Back to draft'][$action] }}</button></form>
                     @endforeach
                     @if (($contract->isLive() || $contract->effectiveStatus() === 'expired') && $contract->renewals->isEmpty())
                         <form method="post" action="{{ route('admin.contracts.renew', $contract) }}">@csrf<button class="btn btn-light btn-sm">Draft renewal</button></form>
@@ -69,7 +74,7 @@
                         <form method="post" action="{{ route('admin.contracts.lifecycle', $contract) }}" class="mt-4 space-y-2">@csrf @method('patch')<input type="hidden" name="action" value="terminate">
                             <x-field label="Effective date" name="terminated_at"><input id="terminated_at" name="terminated_at" type="date" value="{{ now()->format('Y-m-d') }}" class="input"></x-field>
                             <x-field label="Reason" name="reason" required><textarea id="reason" name="reason" rows="2" required class="input"></textarea></x-field>
-                            <button class="btn btn-danger btn-sm" onclick="return confirm('Terminate this contract? Future billing stops and the record is kept.')">Confirm termination</button>
+                            <button class="btn btn-danger btn-sm" data-confirm="Terminate this contract? Future billing stops and the record is kept.">Confirm termination</button>
                         </form>
                     </details>
                 @endif
@@ -77,6 +82,7 @@
             </section>
             <section class="card text-sm">
                 <h2 class="text-lg font-bold">Financials</h2>
+                @if ($deposit)<p class="mt-3 rounded-xl px-3 py-2 text-sm font-semibold {{ $deposit['paid'] ? 'bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900' }}">{{ $deposit['paid'] ? 'Deposit received' : 'Deposit outstanding: '.money($deposit['balance'], $contract->currency) }} <a href="{{ route('admin.invoices.show', $deposit['invoice']) }}" class="font-normal underline">{{ $deposit['invoice']->reference }}</a></p>@endif
                 <dl class="mt-4 grid grid-cols-2 gap-x-4 gap-y-2">
                     <div><dt class="eyebrow">Contracted</dt><dd class="font-semibold tabular-nums">{{ $finance['contracted_value'] === null ? 'Open-ended' : money($finance['contracted_value'], $contract->currency) }}</dd></div>
                     <div><dt class="eyebrow">Remaining to bill</dt><dd class="font-semibold tabular-nums">{{ $finance['remaining_value'] === null ? '—' : money($finance['remaining_value'], $contract->currency) }}</dd></div>
@@ -101,16 +107,16 @@
                     @if ($sig = $contract->signatureDataUri())<img src="{{ $sig }}" alt="Client signature" class="mt-4 h-16 w-auto rounded-lg bg-white ring-1 ring-line">@endif
                     <p class="mt-2">{{ $contract->signed_name }} · {{ $contract->signed_at->format('j M Y, g:ia') }}</p>
                     <p class="text-xs text-muted">IP {{ $contract->signed_ip }} · login {{ $contract->signer?->email }}</p>
-                    @unless ($contract->isClosed())<form method="post" action="{{ route('admin.contracts.signature', $contract) }}" class="mt-3" onsubmit="return confirm('Clear the signature? The client will need to sign again.')">@csrf @method('patch')<input type="hidden" name="action" value="clear"><button class="btn-link-danger">Clear signature</button></form>@endunless
+                    @unless ($contract->isClosed())<form method="post" action="{{ route('admin.contracts.signature', $contract) }}" class="mt-3" data-confirm="Clear the signature? The client will need to sign again.">@csrf @method('patch')<input type="hidden" name="action" value="clear"><button class="btn-link-danger">Clear signature</button></form>@endunless
                 @elseif ($contract->isSigned())
                     <p class="mt-2"><x-badge status="verified">Signed copy uploaded</x-badge></p><p class="mt-2 text-muted">Signed {{ $contract->signed_at->format('j M Y') }}.</p>
                 @elseif ($contract->awaitingSignature())
                     <p class="mt-2"><x-badge status="pending">Awaiting client</x-badge></p><p class="mt-2 text-muted">Sent {{ $contract->sent_for_signature_at->diffForHumans() }}. The client sees a "Sign now" banner in their portal.</p>
-                    <div class="mt-4 flex flex-wrap gap-2"><form method="post" action="{{ route('admin.contracts.remind', $contract) }}">@csrf<button class="btn btn-primary btn-sm">Send reminder</button></form><form method="post" action="{{ route('admin.contracts.signature', $contract) }}">@csrf @method('patch')<input type="hidden" name="action" value="withdraw"><button class="btn btn-light btn-sm">Withdraw request</button></form></div>
+                    <div class="mt-4 flex flex-wrap gap-2"><form method="post" action="{{ route('admin.contracts.remind', $contract) }}">@csrf<button class="btn btn-primary btn-sm">Send reminder</button></form><form method="post" action="{{ route('admin.contracts.signature', $contract) }}">@csrf @method('patch')<input type="hidden" name="action" value="withdraw"><button class="btn btn-light btn-sm" data-confirm="Withdraw the signature request? The client will no longer be able to sign until you send it again.">Withdraw request</button></form></div>
                     @if ($contract->reminded_at)<p class="mt-2 text-xs text-muted">Last reminder {{ $contract->reminded_at->diffForHumans() }}.</p>@endif
                 @else
                     <p class="mt-2 text-muted">Not sent for signature. The client will be able to read the contract PDF and sign it electronically in their portal.</p>
-                    <form method="post" action="{{ route('admin.contracts.signature', $contract) }}" class="mt-3">@csrf @method('patch')<input type="hidden" name="action" value="request"><button class="btn btn-primary btn-sm">Send for signature</button></form>
+                    <form method="post" action="{{ route('admin.contracts.signature', $contract) }}" class="mt-3" data-confirm="Email this contract to the client to review and sign? It becomes visible to them now.">@csrf @method('patch')<input type="hidden" name="action" value="request"><button class="btn btn-primary btn-sm">Send for signature</button></form>
                     @if ($contract->status === 'draft')<p class="mt-2 text-xs text-muted">Sending approves the draft so the client can see it; it becomes Active when they sign.</p>@endif
                 @endif
                 <div class="mt-4 border-t border-line pt-3">
@@ -137,7 +143,7 @@
                 </ul>
             </section>
             @if (! $contract->isSigned() && ! $contract->payments()->exists() && ! $contract->invoices()->exists())
-                <form method="post" action="{{ route('admin.contracts.destroy', $contract) }}" onsubmit="return confirm('Delete this draft contract? This cannot be undone.')" class="text-right">@csrf @method('delete')<button class="btn-link-danger">Delete contract</button></form>
+                <form method="post" action="{{ route('admin.contracts.destroy', $contract) }}" data-confirm="Delete this draft contract? This cannot be undone." class="text-right">@csrf @method('delete')<button class="btn-link-danger">Delete contract</button></form>
             @else
                 <p class="text-right text-xs text-muted">Signed, invoiced or paid contracts cannot be deleted. Terminate or cancel instead.</p>
             @endif

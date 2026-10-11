@@ -83,6 +83,8 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
 */
 Route::middleware(['auth', 'role:client'])->prefix('portal')->name('portal.')->group(function () {
     Route::get('/', Portal\DashboardController::class)->name('dashboard');
+    Route::get('welcome', [Portal\WelcomeController::class, 'show'])->name('welcome');
+    Route::post('welcome', [Portal\WelcomeController::class, 'complete'])->name('welcome.complete');
     Route::get('contracts', [Portal\ContractController::class, 'index'])->name('contracts.index');
     Route::get('contracts/{contract}', [Portal\ContractController::class, 'show'])->name('contracts.show');
     Route::get('contracts/{contract}/sign', [Portal\ContractController::class, 'sign'])->name('contracts.sign');

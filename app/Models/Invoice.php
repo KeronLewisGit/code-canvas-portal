@@ -32,7 +32,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $reminded_at
  * @property-read Client $client
  */
-#[Fillable(['reference', 'client_id', 'contract_id', 'quotation_id', 'title', 'issue_date', 'due_date', 'currency', 'tax_rate', 'status', 'notes', 'sent_at', 'paid_at', 'reminded_at'])]
+#[Fillable(['reference', 'client_id', 'contract_id', 'quotation_id', 'title', 'issue_date', 'due_date', 'currency', 'tax_rate', 'status', 'notes', 'sent_at', 'paid_at', 'reminded_at', 'kind'])]
 class Invoice extends Model
 {
     use DateRules, HasLineItems, HasReference;
@@ -100,6 +100,12 @@ class Invoice extends Model
     public function balance(): float
     {
         return max(0, (float) $this->total - $this->paidAmount());
+    }
+
+    /** Issued, not settled, and something still owed. */
+    public function acceptsPayments(): bool
+    {
+        return in_array($this->status, ['sent', 'partial']) && $this->balance() > 0;
     }
 
     /** Called after a payment is verified or rejected. */

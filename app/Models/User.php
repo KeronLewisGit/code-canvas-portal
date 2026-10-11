@@ -22,6 +22,9 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'last_login_at' => 'datetime',
+            'welcomed_at' => 'datetime',
+            'password_changed_at' => 'datetime',
         ];
     }
 
@@ -39,5 +42,17 @@ class User extends Authenticatable
     public function isClient(): bool
     {
         return $this->role === 'client' && $this->client_id !== null;
+    }
+
+    /** Clients see the portal guide on their first sign-in. */
+    public function needsWelcome(): bool
+    {
+        return $this->isClient() && $this->welcomed_at === null;
+    }
+
+    /** True while a client still signs in with the password we issued rather than one they chose. */
+    public function usesIssuedPassword(): bool
+    {
+        return $this->isClient() && $this->password_changed_at === null;
     }
 }

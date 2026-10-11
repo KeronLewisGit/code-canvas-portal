@@ -58,20 +58,38 @@ class Client extends Model
         return $this->hasMany(Payment::class)->latest('paid_on');
     }
 
+    /** Contracts the client can pay against right now. The single rule behind every payment option in the portal. */
+    public function payableContracts(): Collection
+    {
+        return $this->contracts()->whereIn('status', Contract::PAYABLE_STATUSES)->get()->filter->acceptsPayments()->values();
+    }
+
+    /** Invoices the client can pay against right now. */
+    public function payableInvoices(): Collection
+    {
+        return $this->invoices()->whereIn('status', ['sent', 'partial'])->get()->filter->acceptsPayments()->values();
+    }
+
+    /** Payment options are shown only once there is an issued contract or invoice with something owed. */
+    public function hasPayables(): bool
+    {
+        return $this->payableInvoices()->isNotEmpty() || $this->payableContracts()->isNotEmpty();
+    }
+
     public function hasDisclosureConsent(): bool
     {
         return $this->disclosure_consent_at !== null;
     }
 
-    /** Total still owed across active and completed contracts (verified payments only). */
+    /**
+     * What the client owes right now (verified payments deducted): the balance of every contract issued to them,
+     * plus open invoices that are not tied to a contract. Invoices on a contract are covered by its balance.
+     */
     public function outstanding(): float
     {
-        return self::outstandingOf($this->contracts);
-    }
+        $contracts = $this->contracts()->whereIn('status', Contract::PAYABLE_STATUSES)->get()->filter->isIssued()->sum(fn (Contract $c) => $c->balance());
+        $looseInvoices = $this->invoices()->whereNull('contract_id')->whereIn('status', ['sent', 'partial'])->get()->sum(fn (Invoice $i) => $i->balance());
 
-    /** Same figure from an already-loaded set of contracts. */
-    public static function outstandingOf(Collection $contracts): float
-    {
-        return round($contracts->whereIn('status', ['active', 'completed'])->sum(fn (Contract $c) => $c->balance()), 2);
+        return round($contracts + $looseInvoices, 2);
     }
 }

@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\Contract;
 use App\Models\Invoice;
+use App\Services\ContractInvoicing;
 use App\Services\Notifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,8 +34,21 @@ class InvoiceController extends Controller
     public function create(Request $request): View
     {
         $contract = $request->filled('contract') ? Contract::find($request->contract) : null;
-        $invoice = new Invoice(['issue_date' => now(), 'due_date' => now()->addDays(14), 'currency' => $contract?->currency ?? config('company.currency.code'), 'tax_rate' => config('company.tax_rate'), 'status' => 'draft', 'client_id' => $contract?->client_id ?? ($request->integer('client') ?: null), 'contract_id' => $contract?->id, 'title' => $contract?->title]);
-        $items = $contract ? [['description' => $contract->title.' ('.$contract->reference.')', 'quantity' => 1, 'unit_price' => $contract->balance()]] : [];
+        $kind = $contract && $request->query('kind') === 'balance' ? 'balance' : 'standard';
+        $invoice = new Invoice([
+            'issue_date' => now(),
+            'due_date' => now()->addDays($contract ? (int) $contract->payment_terms_days : 14),
+            'currency' => $contract?->currency ?? config('company.currency.code'),
+            // A contract price already includes any tax from its quotation, so billing it adds none on top.
+            'tax_rate' => $contract ? 0 : config('company.tax_rate'),
+            'status' => 'draft',
+            'kind' => $kind,
+            'client_id' => $contract?->client_id ?? ($request->integer('client') ?: null),
+            'contract_id' => $contract?->id,
+            'title' => $contract ? ($kind === 'balance' ? 'Balance: '.$contract->title : $contract->title) : null,
+        ]);
+        // What is still left to bill: the remainder of a one-off price, or one period of a recurring one.
+        $items = $contract ? [['description' => $invoice->title.' ('.$contract->reference.')', 'quantity' => 1, 'unit_price' => ContractInvoicing::balanceToInvoice($contract)]] : [];
 
         return view('admin.invoices.form', $this->formData($invoice, $items));
     }
@@ -138,7 +152,7 @@ class InvoiceController extends Controller
 
     private function validated(Request $request): array
     {
-        return $request->validate($this->documentRules($request, ['due_date' => ['nullable', 'date', 'after_or_equal:issue_date'], 'status' => ['required', 'in:draft,sent']]), $this->documentMessages());
+        return $request->validate($this->documentRules($request, ['due_date' => ['nullable', 'date', 'after_or_equal:issue_date'], 'status' => ['required', 'in:draft,sent'], 'kind' => ['sometimes', 'in:'.implode(',', array_keys(ContractInvoicing::KINDS))]]), $this->documentMessages());
     }
 
     private function formData(Invoice $invoice, iterable $items): array

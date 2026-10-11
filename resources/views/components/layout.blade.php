@@ -23,11 +23,15 @@
     </main>
 @else
     @php($admin = $user->isAdmin())
+    {{-- Payment options appear only once the client has an issued contract or invoice to pay; past payments stay reachable. --}}
+    @php($canPay = ! $admin && $user->client?->hasPayables())
+    @php($showPayments = $admin || $canPay || $user->client?->payments()->exists())
     @php($nav = $admin
         ? [['admin.dashboard', 'Dashboard', 'admin.dashboard', 'home'], ['admin.clients.index', 'Clients', 'admin.clients.*', 'clients'], ['admin.contracts.index', 'Contracts', 'admin.contracts.*', 'contracts'], ['admin.quotations.index', 'Quotations', 'admin.quotations.*', 'quotations'], ['admin.invoices.index', 'Invoices', 'admin.invoices.*', 'invoices'], ['admin.payments.index', 'Payments', 'admin.payments.*', 'payments'], ['admin.reports.revenue', 'Reports', 'admin.reports.*', 'chart'], ['admin.settings.terms', 'Settings', 'admin.settings.*', 'settings']]
-        : [['portal.dashboard', 'Overview', 'portal.dashboard', 'home'], ['portal.contracts.index', 'Contracts', 'portal.contracts.*', 'contracts'], ['portal.quotations.index', 'Quotations', 'portal.quotations.*', 'quotations'], ['portal.invoices.index', 'Invoices', 'portal.invoices.*', 'invoices'], ['portal.payments.index', 'Payments', 'portal.payments.*', 'payments']])
-    <div x-data="{ open: false }" @keydown.escape.window="open = false" class="min-h-screen lg:flex">
-        <aside id="sidebar" class="sidebar no-print fixed inset-y-0 left-0 z-40 flex h-screen w-72 -translate-x-full flex-col text-white transition lg:sticky lg:top-0 lg:translate-x-0" :class="open && 'translate-x-0'" aria-label="Main navigation">
+        : [['portal.dashboard', 'Overview', 'portal.dashboard', 'home'], ['portal.contracts.index', 'Contracts', 'portal.contracts.*', 'contracts'], ['portal.quotations.index', 'Quotations', 'portal.quotations.*', 'quotations'], ['portal.invoices.index', 'Invoices', 'portal.invoices.*', 'invoices'], ['portal.payments.index', 'Payments', 'portal.payments.*', 'payments'], ['portal.welcome', 'Portal guide', 'portal.welcome', 'help']])
+    @php($nav = array_values(array_filter($nav, fn ($item) => $item[0] !== 'portal.payments.index' || $showPayments)))
+    <div x-data="{ open: false, desktop: window.matchMedia('(min-width: 1024px)').matches }" x-init="window.matchMedia('(min-width: 1024px)').addEventListener('change', (e) => desktop = e.matches); $watch('open', (v) => v && $nextTick(() => $refs.sidebar.querySelector('a, button')?.focus()))" @keydown.escape.window="open = false" class="min-h-screen lg:flex">
+        <aside id="sidebar" x-ref="sidebar" :inert="!open && !desktop" class="sidebar no-print fixed inset-y-0 left-0 z-40 flex h-screen w-72 -translate-x-full flex-col text-white transition lg:sticky lg:top-0 lg:translate-x-0" :class="open && 'translate-x-0'" aria-label="Main navigation">
             <div class="flex h-16 items-center justify-between px-5">
                 <a href="{{ route('home') }}" class="flex items-center gap-3 rounded-lg" aria-label="{{ $company['name'] }} home">
                     <x-logo class="size-9" />
@@ -40,9 +44,6 @@
                     @php($current = request()->routeIs($pattern))
                     <a href="{{ route($route) }}" class="nav-link {{ $current ? 'active' : '' }}" @if ($current) aria-current="page" @endif><x-icon :name="$icon" />{{ $label }}</a>
                 @endforeach
-                @if (! $admin)
-                    <a href="{{ route('portal.payments.create') }}" class="btn btn-primary mt-4 w-full"><x-icon name="payments" />Submit a payment</a>
-                @endif
             </nav>
             <div class="border-t border-white/10 p-4 text-sm">
                 <p class="truncate font-semibold">{{ $user->name }}</p>
@@ -64,6 +65,9 @@
                 <div class="mx-auto max-w-6xl">
                     @if (session('saved'))<div role="status" class="no-print mb-5 flex items-start gap-3 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900 ring-1 ring-emerald-200"><span aria-hidden="true">✓</span><span>{{ session('saved') }}</span></div>@endif
                     @if (session('warning'))<div role="alert" class="no-print mb-5 flex items-start gap-3 rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 ring-1 ring-amber-200"><span aria-hidden="true">!</span><span>{{ session('warning') }}</span></div>@endif
+                    @if ($user->usesIssuedPassword() && ! request()->routeIs('account'))
+                        <div role="status" class="no-print mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-brand-50 px-4 py-3 text-sm text-brand-900 ring-1 ring-brand-100"><span>You are still using the password we emailed you. Choose your own to keep your account secure.</span><a href="{{ route('account') }}" class="btn btn-light btn-sm">Choose a password</a></div>
+                    @endif
                     @if (session('credentials'))
                         <div role="status" class="no-print mb-5 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200">
                             <p class="font-bold">{{ ! empty(session('credentials')['emailed']) ? 'These details were emailed to the client. They are shown here only this once in case you also want to pass them on.' : 'Pass these details to the client. The password is shown only this once.' }}</p>

@@ -1,13 +1,13 @@
 <x-layout :title="$invoice->reference">
-    <x-page :title="$invoice->title" eyebrow="Invoice {{ $invoice->reference }}" :back="[route('portal.invoices.index'), 'Invoices']">
+    <x-page :title="$invoice->title" :eyebrow="'Invoice '.($invoice->reference)" :back="[route('portal.invoices.index'), 'Invoices']">
         <x-slot:actions>
-            <a href="{{ route('documents.invoice', $invoice) }}" target="_blank" class="btn btn-light">Print / PDF</a>
-            @if ($invoice->balance() > 0 && $invoice->status !== 'cancelled')<a href="{{ route('portal.payments.create', ['invoice' => $invoice->id]) }}" class="btn btn-primary">Submit a payment</a>@endif
+            <a href="{{ route('documents.invoice', $invoice) }}" target="_blank" class="btn btn-light">View PDF</a>
+            @if ($invoice->acceptsPayments())<a href="{{ route('portal.payments.create', ['invoice' => $invoice->id]) }}" class="btn btn-primary">Submit a payment</a>@endif
         </x-slot:actions>
     </x-page>
     <div class="grid gap-6 lg:grid-cols-3">
-        <div class="lg:col-span-2"><iframe src="{{ route('documents.invoice', [$invoice, 'embed' => 1]) }}" title="Invoice preview" class="h-[1150px] w-full rounded-2xl ring-1 ring-line" loading="lazy"></iframe></div>
-        <div class="space-y-6">
+        <div class="lg:col-span-2"><iframe src="{{ route('documents.invoice', [$invoice, 'embed' => 1]) }}" title="Invoice preview" class="h-[75vh] min-h-[28rem] w-full rounded-2xl lg:h-[1150px] ring-1 ring-line" loading="lazy"></iframe></div>
+        <div class="order-first space-y-6 lg:order-none">
             <section class="card text-sm">
                 <h2 class="text-lg font-bold">Status</h2>
                 <p class="mt-2"><x-badge :status="$invoice->effectiveStatus()" /></p>

@@ -127,7 +127,7 @@ class NotificationTest extends TestCase
         Notification::assertSentTo($bob, PortalMail::class, function (PortalMail $mail) use ($bob) {
             $rendered = $mail->toMail($bob);
 
-            return str_contains($mail->subject, 'client portal login')
+            return str_contains($mail->subject, 'Welcome to the')
                 && in_array('Email: bob@acme.test', $mail->lines, true)
                 && collect($mail->lines)->contains(fn ($l) => str_starts_with($l, 'Password: '))
                 && $rendered->actionUrl === route('login');

@@ -1,5 +1,5 @@
 <x-layout title="Payment">
-    <x-page :title="money($payment->amount, $payment->currency).' from '.$payment->client->company" eyebrow="Payment · {{ $payment->methodName() }}" :back="[route('admin.payments.index'), 'Payments']" />
+    <x-page :title="money($payment->amount, $payment->currency).' from '.$payment->client->company" :eyebrow="'Payment · '.($payment->methodName())" :back="[route('admin.payments.index'), 'Payments']" />
     <div class="grid gap-6 lg:grid-cols-3">
         <section class="card text-sm lg:col-span-2">
             <div class="flex items-center justify-between"><h2 class="text-lg font-bold">Details</h2><x-badge :status="$payment->status" /></div>
@@ -30,7 +30,7 @@
                     <p class="text-muted">Check your bank statement, cash book or cheque before confirming. Verifying updates the contract and invoice balances.</p>
                     <form method="post" action="{{ route('admin.payments.verify', $payment) }}">@csrf @method('patch')<button class="btn btn-primary w-full">Confirm received</button></form>
                     <form method="post" action="{{ route('admin.payments.reject', $payment) }}" class="space-y-2 border-t border-line pt-3">@csrf @method('patch')
-                        <textarea name="rejection_reason" rows="2" placeholder="Reason the client will see, e.g. amount on screenshot does not match" required class="input"></textarea>
+                        <x-field label="Reason (the client sees this)" name="rejection_reason" required><textarea id="rejection_reason" name="rejection_reason" rows="2" placeholder="e.g. the amount on the screenshot does not match" required class="input">{{ old('rejection_reason') }}</textarea></x-field>
                         <button class="btn btn-light w-full text-red-700">Reject</button>
                     </form>
                 </section>
@@ -40,11 +40,11 @@
                     <p class="mt-1 text-muted">Made a mistake? You can flip the decision.</p>
                     <div class="mt-4 flex gap-2">
                         @if ($payment->status === 'rejected')<form method="post" action="{{ route('admin.payments.verify', $payment) }}">@csrf @method('patch')<button class="btn btn-light btn-sm">Verify instead</button></form>@endif
-                        @if ($payment->status === 'verified')<form method="post" action="{{ route('admin.payments.reject', $payment) }}" onsubmit="return confirm('Reverse this verification? The payment becomes rejected and the client is emailed.')">@csrf @method('patch')<input type="hidden" name="rejection_reason" value="Reversed by {{ config('company.short') }}."><button class="btn btn-light btn-sm text-red-700">Reverse verification</button></form>@endif
+                        @if ($payment->status === 'verified')<form method="post" action="{{ route('admin.payments.reject', $payment) }}" data-confirm="Reverse this verification? The payment becomes rejected and the client is emailed.">@csrf @method('patch')<input type="hidden" name="rejection_reason" value="Reversed by {{ config('company.short') }}."><button class="btn btn-light btn-sm text-red-700">Reverse verification</button></form>@endif
                     </div>
                 </section>
             @endif
-            @if ($payment->status !== 'verified')<form method="post" action="{{ route('admin.payments.destroy', $payment) }}" onsubmit="return confirm('Delete this payment record?')" class="text-right">@csrf @method('delete')<button class="btn-link-danger">Delete payment</button></form>@endif
+            @if ($payment->status !== 'verified')<form method="post" action="{{ route('admin.payments.destroy', $payment) }}" data-confirm="Delete this payment record?" class="text-right">@csrf @method('delete')<button class="btn-link-danger">Delete payment</button></form>@endif
         </div>
     </div>
 </x-layout>

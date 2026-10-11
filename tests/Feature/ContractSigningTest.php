@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Client;
 use App\Models\Contract;
+use App\Models\Invoice;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
@@ -50,7 +51,7 @@ class ContractSigningTest extends TestCase
         $this->actingAs($this->clientUser)->get(route('portal.contracts.show', $this->contract))->assertOk()->assertSee('Sign now');
         $this->actingAs($this->clientUser)->get(route('portal.contracts.sign', $this->contract))->assertOk()->assertSee('Draw your signature');
 
-        $this->actingAs($this->clientUser)->post(route('portal.contracts.sign.store', $this->contract), ['signed_name' => 'Ann Example', 'agree' => 1, 'signature' => $this->png])->assertRedirect(route('portal.contracts.show', $this->contract));
+        $this->actingAs($this->clientUser)->post(route('portal.contracts.sign.store', $this->contract), ['signed_name' => 'Ann Example', 'agree' => 1, 'signature' => $this->png])->assertRedirect(route('portal.invoices.show', Invoice::sole()));
 
         $this->contract->refresh();
         $this->assertSame('active', $this->contract->status, 'the client signature activates it');

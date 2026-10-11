@@ -5,9 +5,9 @@
             <h2 class="text-lg font-bold">Change password</h2>
             <form method="post" action="{{ route('account.password') }}" class="mt-4 space-y-4">
                 @csrf @method('patch')
-                <x-field label="Current password" name="current_password" required><input id="current_password" name="current_password" type="password" required class="input"></x-field>
-                <x-field label="New password" name="password" required hint="At least 10 characters."><input id="password" name="password" type="password" required class="input"></x-field>
-                <x-field label="Confirm new password" name="password_confirmation" required><input id="password_confirmation" name="password_confirmation" type="password" required class="input"></x-field>
+                <x-field label="Current password" name="current_password" required><input id="current_password" name="current_password" type="password" autocomplete="current-password" required class="input"></x-field>
+                <x-field label="New password" name="password" required hint="At least 10 characters."><input id="password" name="password" type="password" autocomplete="new-password" minlength="10" required class="input"></x-field>
+                <x-field label="Confirm new password" name="password_confirmation" required><input id="password_confirmation" name="password_confirmation" type="password" autocomplete="new-password" required class="input"></x-field>
                 <button class="btn btn-primary">Update password</button>
             </form>
         </div>

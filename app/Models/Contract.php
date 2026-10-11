@@ -51,7 +51,7 @@ use Illuminate\Support\Facades\Storage;
  * @property Carbon|null $reminded_at
  * @property-read Client $client
  */
-#[Fillable(['reference', 'client_id', 'title', 'type', 'start_date', 'end_date', 'amount', 'billing_cycle', 'currency', 'status', 'scope', 'terms', 'file_path', 'standard_terms', 'signed_at', 'signature_path', 'signed_name', 'signed_ip', 'signed_by', 'sent_for_signature_at', 'payment_terms_days', 'notice_period_days', 'auto_renew', 'renewal_of_id', 'client_signatory', 'company_signatory', 'confidential', 'version', 'approved_at', 'approved_by', 'activated_at', 'terminated_at', 'termination_reason', 'reminded_at'])]
+#[Fillable(['reference', 'client_id', 'title', 'type', 'start_date', 'end_date', 'amount', 'billing_cycle', 'currency', 'status', 'scope', 'terms', 'file_path', 'standard_terms', 'signed_at', 'signature_path', 'signed_name', 'signed_ip', 'signed_by', 'sent_for_signature_at', 'payment_terms_days', 'notice_period_days', 'auto_renew', 'renewal_of_id', 'client_signatory', 'company_signatory', 'confidential', 'version', 'approved_at', 'approved_by', 'activated_at', 'terminated_at', 'termination_reason', 'reminded_at', 'deposit_percent'])]
 class Contract extends Model
 {
     use DateRules, HasReference;
@@ -153,6 +153,24 @@ class Contract extends Model
     public function isClosed(): bool
     {
         return in_array($this->effectiveStatus(), config('company.contract_closed_statuses'));
+    }
+
+    /** Statuses that mean the contract was in effect, so the client always keeps it on record. */
+    public const IN_EFFECT_STATUSES = ['active', 'completed', 'expired', 'terminated'];
+
+    /**
+     * What the client sees: contracts that took effect, plus approved or cancelled ones only if they were actually
+     * sent to the client (or signed). Drafts, and contracts approved internally but never sent, stay hidden.
+     */
+    public function scopeVisibleToClient(Builder $query): Builder
+    {
+        return $query->where(fn ($q) => $q->whereIn('status', self::IN_EFFECT_STATUSES)
+            ->orWhere(fn ($w) => $w->whereIn('status', ['approved', 'cancelled'])->where(fn ($x) => $x->whereNotNull('sent_for_signature_at')->orWhereNotNull('signed_at'))));
+    }
+
+    public function isVisibleToClient(): bool
+    {
+        return in_array($this->status, self::IN_EFFECT_STATUSES) || (in_array($this->status, ['approved', 'cancelled']) && ($this->sent_for_signature_at !== null || $this->signed_at !== null));
     }
 
     public function scopeLive(Builder $query): Builder
@@ -328,14 +346,14 @@ class Contract extends Model
         return max(0, $this->dueToDate() - $this->paidAmount());
     }
 
-    /** unpaid | partial | paid, from verified payments only. */
+    /** not_due | unpaid | partial | paid, from verified payments only. */
     public function paymentState(): string
     {
         $paid = $this->paidAmount();
         $due = $this->dueToDate();
 
         return match (true) {
-            $due <= 0 => 'paid',
+            $due <= 0 => $paid > 0 ? 'paid' : 'not_due', // e.g. a recurring contract before its first cycle
             $paid <= 0 => 'unpaid',
             $paid + 0.005 >= $due => 'paid',
             default => 'partial',
@@ -359,9 +377,18 @@ class Contract extends Model
         return $this->signature_path !== null;
     }
 
+    /**
+     * Whether the client has actually been given this contract: it is in effect (or was), or it has been sent
+     * to them for signature. An approved contract that was never sent does not count yet.
+     */
+    public function isIssued(): bool
+    {
+        return in_array($this->status, ['active', 'completed', 'expired']) || ($this->status === 'approved' && ($this->sent_for_signature_at !== null || $this->signed_at !== null));
+    }
+
     public function acceptsPayments(): bool
     {
-        return in_array($this->status, self::PAYABLE_STATUSES) && $this->balance() > 0;
+        return in_array($this->status, self::PAYABLE_STATUSES) && $this->isIssued() && $this->balance() > 0;
     }
 
     /** Clients can sign once the contract is sent for signature and not yet signed. */
