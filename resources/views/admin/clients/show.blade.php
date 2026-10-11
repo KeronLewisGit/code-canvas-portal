@@ -13,7 +13,8 @@
             <section class="card text-sm">
                 <h2 class="text-lg font-bold">Details</h2>
                 <dl class="mt-4 space-y-2">
-                    <div><dt class="eyebrow">Contact</dt><dd class="font-semibold">{{ $client->contact_name }}</dd></div>
+                    <div><dt class="eyebrow">Type</dt><dd class="font-semibold">{{ \App\Models\Client::TYPES[$client->type] ?? 'Company' }}</dd></div>
+                    @unless ($client->isIndividual())<div><dt class="eyebrow">Contact</dt><dd class="font-semibold">{{ $client->contact_name }}</dd></div>@endunless
                     <div><dt class="eyebrow">Email</dt><dd><a href="mailto:{{ $client->email }}" class="hover:text-brand-700">{{ $client->email }}</a></dd></div>
                     @if ($client->phone)<div><dt class="eyebrow">Phone</dt><dd>{{ $client->phone }}</dd></div>@endif
                     @if ($client->website)<div><dt class="eyebrow">Website</dt><dd><a href="{{ $client->website }}" target="_blank" rel="noopener" class="hover:text-brand-700">{{ $client->website }}</a></dd></div>@endif

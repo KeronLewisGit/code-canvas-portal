@@ -15,7 +15,7 @@
             <h2 class="text-lg font-bold">Signed in as</h2>
             <p class="mt-4 font-semibold">{{ auth()->user()->name }}</p>
             <p class="text-muted">{{ auth()->user()->email }}</p>
-            @if (auth()->user()->client)<p class="mt-4 text-muted">Company: <span class="font-semibold text-ink">{{ auth()->user()->client->company }}</span></p><p class="mt-2 text-xs text-muted">To change company details, contact {{ config('company.email') }}.</p>@endif
+            @if (auth()->user()->client && ! auth()->user()->client->isIndividual())<p class="mt-4 text-muted">Company: <span class="font-semibold text-ink">{{ auth()->user()->client->company }}</span></p><p class="mt-2 text-xs text-muted">To change company details, contact {{ config('company.email') }}.</p>@endif
         </div>
     </div>
 </x-layout>

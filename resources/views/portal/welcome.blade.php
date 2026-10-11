@@ -6,7 +6,7 @@
 ])
 <x-layout title="Welcome" :plain="true" :wide="true">
     <div class="card">
-        <p class="eyebrow">{{ auth()->user()->client->company }}</p>
+        @unless (auth()->user()->client->isIndividual())<p class="eyebrow">{{ auth()->user()->client->company }}</p>@endunless
         <h1 class="mt-1 text-2xl font-bold">{{ $firstVisit ? 'Welcome, '.auth()->user()->name.'.' : 'Your portal guide' }}</h1>
         <p class="mt-2 text-muted">This is your {{ config('company.short') }} client portal: everything about your project in one place. Here is how it works.</p>
 

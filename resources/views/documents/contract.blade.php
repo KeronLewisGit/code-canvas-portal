@@ -9,7 +9,7 @@
         <h1 class="mt-6 text-xl font-semibold">{{ $contract->title }}</h1>
         <div class="mt-4 grid grid-cols-2 gap-4 text-sm">
             <div><p class="eyebrow">Between</p><p class="font-semibold">{{ $company['name'] }}</p><p class="text-muted">("Code Canvas")</p></div>
-            <div><p class="eyebrow">And</p><p class="font-semibold">{{ $contract->client->company }}</p><p class="text-muted">{{ $contract->client->contact_name }} · {{ $contract->client->email }}@if ($contract->client->address)<br>{{ $contract->client->address }}@endif<br>("the Client")</p></div>
+            <div><p class="eyebrow">And</p><p class="font-semibold">{{ $contract->client->company }}</p><p class="text-muted">@unless ($contract->client->isIndividual()){{ $contract->client->contact_name }} · @endunless{{ $contract->client->email }}@if ($contract->client->address)<br>{{ $contract->client->address }}@endif<br>("the Client")</p></div>
         </div>
 
         <dl class="mt-6 grid grid-cols-3 gap-4 rounded-xl bg-paper p-4 text-sm avoid-break">
@@ -46,15 +46,15 @@
                 <div class="mt-1 border-t-2 border-ink pt-2">
                     @if ($contract->isSignedInPortal())
                         <p class="font-semibold">{{ $contract->signed_name }}</p>
-                        <p class="muted">For {{ $contract->client->company }}</p>
+                        @unless ($contract->client->isIndividual())<p class="muted">For {{ $contract->client->company }}</p>@endunless
                         <p class="small muted">Signed electronically {{ $contract->signed_at->format('j F Y \a\t g:ia') }} ({{ config('app.timezone') }}) · IP {{ $contract->signed_ip }}</p>
                     @elseif ($contract->isSigned())
                         <p class="font-semibold">{{ $contract->clientSignatoryName() }}</p>
-                        <p class="muted">For {{ $contract->client->company }}</p>
+                        @unless ($contract->client->isIndividual())<p class="muted">For {{ $contract->client->company }}</p>@endunless
                         <p class="small muted">Signed {{ $contract->signed_at->format('j F Y') }} (signed copy on file)</p>
                     @else
                         <p class="font-semibold">{{ $contract->clientSignatoryName() }}</p>
-                        <p class="muted">For {{ $contract->client->company }}</p>
+                        @unless ($contract->client->isIndividual())<p class="muted">For {{ $contract->client->company }}</p>@endunless
                         <p class="small muted">Not yet signed</p>
                     @endif
                 </div>

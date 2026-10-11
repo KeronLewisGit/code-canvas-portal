@@ -10,7 +10,8 @@ use Illuminate\Support\Collection;
 
 /**
  * @property int $id
- * @property string $company
+ * @property string $type company | individual
+ * @property string $company display name: the business, or the person for an individual
  * @property string|null $contact_name
  * @property string|null $email
  * @property string|null $phone
@@ -20,12 +21,19 @@ use Illuminate\Support\Collection;
  * @property bool $active
  * @property Carbon|null $disclosure_consent_at
  */
-#[Fillable(['company', 'contact_name', 'email', 'phone', 'address', 'website', 'notes', 'active', 'disclosure_consent_at'])]
+#[Fillable(['type', 'company', 'contact_name', 'email', 'phone', 'address', 'website', 'notes', 'active', 'disclosure_consent_at'])]
 class Client extends Model
 {
     protected function casts(): array
     {
         return ['active' => 'boolean', 'disclosure_consent_at' => 'datetime'];
+    }
+
+    public const TYPES = ['company' => 'Company', 'individual' => 'Individual'];
+
+    public function isIndividual(): bool
+    {
+        return $this->type === 'individual';
     }
 
     /** @return HasMany<User, $this> */

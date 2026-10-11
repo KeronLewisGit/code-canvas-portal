@@ -41,7 +41,7 @@
                 <input type="hidden" name="signature" x-ref="data">
                 @error('signature')<p class="error">{{ $message }}</p>@enderror
             </div>
-            <label class="flex items-start gap-2"><input type="checkbox" name="agree" value="1" required class="mt-1 size-4 rounded border-line"><span>I have read the contract, including the standard terms, and agree to its scope, fees and terms on behalf of {{ $contract->client->company }}.</span></label>
+            <label class="flex items-start gap-2"><input type="checkbox" name="agree" value="1" required class="mt-1 size-4 rounded border-line"><span>I have read the contract, including the standard terms, and agree to its scope, fees and terms{{ $contract->client->isIndividual() ? '' : ' on behalf of '.$contract->client->company }}.</span></label>
             @error('agree')<p class="error">{{ $message }}</p>@enderror
             <button class="btn btn-primary w-full">Sign contract</button>
             <p class="text-xs text-muted">We record your name, the time and your IP address with the signature.</p>

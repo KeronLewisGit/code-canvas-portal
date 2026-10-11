@@ -1,9 +1,25 @@
 <x-layout :title="$client->exists ? 'Edit client' : 'Add client'">
     <x-page :title="$client->exists ? $client->company : 'Add a client'" eyebrow="Client" :back="[route('admin.clients.index'), 'Clients']" />
-    <form method="post" action="{{ $client->exists ? route('admin.clients.update', $client) : route('admin.clients.store') }}" class="card grid gap-5 sm:grid-cols-2">
+    <form method="post" action="{{ $client->exists ? route('admin.clients.update', $client) : route('admin.clients.store') }}" class="card grid gap-5 sm:grid-cols-2" x-data="{ type: @js(old('type', $client->type ?? 'company')) }">
         @csrf @if ($client->exists) @method('patch') @endif
-        <x-field label="Company or trading name" name="company" required class="sm:col-span-2"><input id="company" name="company" value="{{ old('company', $client->company) }}" required class="input"></x-field>
-        <x-field label="Contact person" name="contact_name" required><input id="contact_name" name="contact_name" value="{{ old('contact_name', $client->contact_name) }}" required class="input"></x-field>
+        <fieldset class="sm:col-span-2">
+            <legend class="label">This client is</legend>
+            <div class="grid gap-2 sm:grid-cols-2">
+                @foreach (\App\Models\Client::TYPES as $k => $label)
+                    <label class="flex cursor-pointer items-start gap-3 rounded-xl p-3 ring-1 ring-line" :class="type === '{{ $k }}' && 'bg-brand-50 ring-brand-400'">
+                        <input type="radio" name="type" value="{{ $k }}" x-model="type" class="mt-1" @checked(old('type', $client->type) === $k)>
+                        <span><span class="block text-sm font-semibold">{{ $k === 'company' ? 'A company or organisation' : 'An individual' }}</span><span class="block text-xs text-muted">{{ $k === 'company' ? 'A business, with a contact person you deal with.' : 'A person contracting in their own name.' }}</span></span>
+                    </label>
+                @endforeach
+            </div>
+        </fieldset>
+        <template x-if="type === 'company'">
+            <x-field label="Company or trading name" name="company" required class="sm:col-span-2"><input id="company" name="company" value="{{ old('company', $client->isIndividual() ? '' : $client->company) }}" required autocomplete="organization" class="input"></x-field>
+        </template>
+        <x-field name="contact_name" required label="Name">
+            <x-slot:labelText><span x-text="type === 'company' ? 'Contact person' : 'Full name'">Contact person</span></x-slot:labelText>
+            <input id="contact_name" name="contact_name" value="{{ old('contact_name', $client->contact_name) }}" required autocomplete="name" class="input">
+        </x-field>
         <x-field label="Email" name="email" required><input id="email" name="email" type="email" value="{{ old('email', $client->email) }}" required class="input"></x-field>
         <x-field label="Phone" name="phone"><input id="phone" name="phone" type="tel" autocomplete="tel" value="{{ old('phone', $client->phone) }}" class="input"></x-field>
         <x-field label="Website" name="website"><input id="website" name="website" type="url" value="{{ old('website', $client->website) }}" placeholder="https://" class="input"></x-field>
