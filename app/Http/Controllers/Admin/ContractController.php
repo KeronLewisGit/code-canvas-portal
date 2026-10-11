@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\Contract;
+use App\Models\Invoice;
+use App\Services\ContractInvoicing;
 use App\Services\ContractLifecycle;
 use App\Services\Notifier;
 use App\Support\Audit;
@@ -50,7 +52,16 @@ class ContractController extends Controller
             return $contract;
         });
 
-        return redirect()->route('admin.contracts.show', $contract)->with('saved', 'Contract '.$contract->reference.' created.');
+        if ($invoice = $this->issueFirstInvoice($contract)) {
+            return redirect()->route('admin.contracts.show', $contract)->with('saved', 'Contract '.$contract->reference.' created. Invoice '.$invoice->reference.' was issued and emailed to the client.');
+        }
+        if ($request->boolean('send') && ContractLifecycle::canSendForSignature($contract)) {
+            $this->lifecycle->sendForSignature($contract, $request->user());
+
+            return redirect()->route('admin.contracts.show', $contract)->with('saved', 'Contract '.$contract->reference.' created and sent to the client to sign.');
+        }
+
+        return redirect()->route('admin.contracts.show', $contract)->with('saved', 'Contract '.$contract->reference.' saved as a draft. The client cannot see it until you send it for signature.');
     }
 
     public function show(Contract $contract): View
@@ -75,6 +86,13 @@ class ContractController extends Controller
             $this->storeFile($request, $contract);
         });
         $message = $contract->version > $wasVersion ? 'Contract amended. Version '.$wasVersion.' is kept on record.' : 'Contract updated.';
+        if ($invoice = $this->issueFirstInvoice($contract)) {
+            $message .= ' Invoice '.$invoice->reference.' was issued and emailed to the client.';
+        }
+        if ($request->boolean('send') && ! $contract->sent_for_signature_at && ContractLifecycle::canSendForSignature($contract->refresh())) {
+            $this->lifecycle->sendForSignature($contract, $request->user());
+            $message .= ' It has been sent to the client to sign.';
+        }
 
         return redirect()->route('admin.contracts.show', $contract)->with('saved', $message);
     }
@@ -86,7 +104,7 @@ class ContractController extends Controller
 
         // Preconditions come back as a form error on the contract page, like the lifecycle actions, not a bare 403.
         $problem = match ($action) {
-            'request' => in_array($contract->status, ['draft', 'approved', 'active']) && ! $contract->isSigned() ? null : 'Only unsigned draft, approved or active contracts can be sent for signature.',
+            'request' => ContractLifecycle::canSendForSignature($contract) ? null : 'Only unsigned draft, approved or active contracts can be sent for signature.',
             'withdraw' => $contract->sent_for_signature_at && ! $contract->isSigned() ? null : 'There is no open signature request to withdraw.',
             default => $contract->isClosed() ? 'The signature on a '.strtolower($contract->statusName()).' contract is part of the record and cannot be cleared.' : ($contract->isSignedInPortal() ? null : 'This contract has no portal signature to clear.'),
         };
@@ -95,7 +113,7 @@ class ContractController extends Controller
         }
 
         match ($action) {
-            'request' => $this->sendForSignature($contract, $request),
+            'request' => $this->lifecycle->sendForSignature($contract, $request->user()),
             'withdraw' => $contract->forceFill(['sent_for_signature_at' => null])->save(),
             default => $this->clearSignature($contract),
         };
@@ -107,17 +125,13 @@ class ContractController extends Controller
         });
     }
 
-    /** A draft is approved on the way out; the client then signs, which activates it. */
-    private function sendForSignature(Contract $contract, Request $request): void
+    /** A signed, live contract gets its first invoice (deposit, full or first period) and the client is emailed it. */
+    private function issueFirstInvoice(Contract $contract): ?Invoice
     {
-        DB::transaction(function () use ($contract, $request) {
-            if ($contract->status === 'draft') {
-                $this->lifecycle->transition($contract, 'approve', $request->user());
-            }
-            $contract->forceFill(['sent_for_signature_at' => now()])->save();
-            Audit::log($contract, 'sent_for_signature');
-        });
-        app(Notifier::class)->contractSentForSignature($contract->fresh(['client.users']));
+        $invoice = app(ContractInvoicing::class)->issueFirstInvoice($contract->refresh());
+        $invoice && app(Notifier::class)->invoiceSent($invoice->load('client.users'));
+
+        return $invoice;
     }
 
     private function clearSignature(Contract $contract): void
@@ -145,8 +159,9 @@ class ContractController extends Controller
         $this->lifecycle->transition($contract, $data['action'], $request->user(), array_filter(['reason' => $data['reason'] ?? null, 'terminated_at' => isset($data['terminated_at']) ? Carbon::parse($data['terminated_at']) : null]));
         $contract = $contract->fresh(['client.users']);
         app(Notifier::class)->contractStatus($contract, $data['action']);
+        $invoice = $this->issueFirstInvoice($contract);
 
-        return back()->with('saved', 'Contract is now '.strtolower($contract->statusName()).'.');
+        return back()->with('saved', 'Contract is now '.strtolower($contract->statusName()).'.'.($invoice ? ' Invoice '.$invoice->reference.' was issued and emailed to the client.' : ''));
     }
 
     public function remind(Request $request, Contract $contract): RedirectResponse
@@ -205,6 +220,7 @@ class ContractController extends Controller
             'billing_cycle' => ['required', 'in:'.implode(',', array_keys(config('company.billing_cycles')))],
             'currency' => ['required', 'in:'.implode(',', array_keys(config('company.currencies')))],
             'payment_terms_days' => ['required', 'integer', 'min:0', 'max:365'],
+            'deposit_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'notice_period_days' => ['nullable', 'integer', 'min:0', 'max:365'],
             'auto_renew' => ['nullable', 'boolean'],
             'client_signatory' => ['nullable', 'string', 'max:120'],

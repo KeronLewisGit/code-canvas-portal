@@ -32,15 +32,15 @@
                                     <p class="font-semibold">{{ $u->name }}</p>
                                     <p class="truncate text-xs text-muted" title="{{ $u->email }}">{{ $u->email }}</p>
                                 </div>
-                                <form method="post" action="{{ route('admin.clients.users.destroy', [$client, $u]) }}" onsubmit="return confirm('Remove this login? This person will no longer be able to sign in.')">@csrf @method('delete')
+                                <form method="post" action="{{ route('admin.clients.users.destroy', [$client, $u]) }}" data-confirm="Remove this login? This person will no longer be able to sign in.">@csrf @method('delete')
                                     <button class="-m-1 grid size-8 shrink-0 cursor-pointer place-items-center rounded-lg text-muted transition hover:bg-red-50 hover:text-red-700 focus-visible:ring-4 focus-visible:ring-red-100 focus:outline-none" title="Remove login" aria-label="Remove login for {{ $u->name }}"><x-icon name="trash" class="size-4" /></button>
                                 </form>
                             </div>
                             <div class="mt-3 grid grid-cols-2 gap-2">
-                                <form method="post" action="{{ route('admin.clients.users.update', [$client, $u]) }}" onsubmit="return confirm('Email new login details to this address? A new password is generated and sent, and the old one stops working immediately.')">@csrf @method('patch')<input type="hidden" name="send_email" value="1">
+                                <form method="post" action="{{ route('admin.clients.users.update', [$client, $u]) }}" data-confirm="Email new login details to this address? A new password is generated and sent, and the old one stops working immediately.">@csrf @method('patch')<input type="hidden" name="send_email" value="1">
                                     <button class="btn btn-light btn-sm w-full" title="Generate a new password and email it to the client"><x-icon name="mail" class="size-4" />Email login</button>
                                 </form>
-                                <form method="post" action="{{ route('admin.clients.users.update', [$client, $u]) }}" onsubmit="return confirm('Generate a new password and show it to you only? The old one stops working immediately.')">@csrf @method('patch')
+                                <form method="post" action="{{ route('admin.clients.users.update', [$client, $u]) }}" data-confirm="Generate a new password and show it to you only? The old one stops working immediately.">@csrf @method('patch')
                                     <button class="btn btn-light btn-sm w-full" title="Generate a new password and show it to you"><x-icon name="key" class="size-4" />Reset password</button>
                                 </form>
                             </div>
@@ -49,12 +49,12 @@
                 </ul>
                 <form method="post" action="{{ route('admin.clients.users.store', $client) }}" class="mt-4 space-y-3 border-t border-line pt-4">
                     @csrf
-                    <p class="font-semibold">Create a login</p>
-                    <input name="name" value="{{ old('name', $client->contact_name) }}" placeholder="Name" required class="input">
-                    <input name="email" type="email" value="{{ old('email', $client->users->isEmpty() ? $client->email : '') }}" placeholder="Email" required class="input">
-                    <input name="password" type="text" placeholder="Password (leave blank to generate one)" class="input" autocomplete="off">
-                    <label class="flex items-start gap-2"><input type="checkbox" name="send_email" value="1" @checked(old('send_email', true)) class="mt-0.5 size-4 rounded border-line"><span><span class="font-semibold">Email the login details to the client</span><span class="block text-xs text-muted">Sends the email, password and a sign-in link to this address. Untick to pass them on yourself.</span></span></label>
-                    <button class="btn btn-dark btn-sm">Create login</button>
+                    <h3 class="font-semibold">{{ $client->users->isEmpty() ? 'Create a login' : 'Add another login' }}</h3>
+                    <x-field label="Name" name="name" required><input id="name" name="name" value="{{ old('name', $client->contact_name) }}" required autocomplete="off" class="input"></x-field>
+                    <x-field label="Email" name="email" required><input id="email" name="email" type="email" value="{{ old('email', $client->users->isEmpty() ? $client->email : '') }}" required autocomplete="off" class="input"></x-field>
+                    <x-field label="Password" name="password" hint="Leave blank to generate a secure one."><input id="password" name="password" type="text" minlength="10" autocomplete="off" class="input"></x-field>
+                    <label class="flex items-start gap-2"><input type="checkbox" name="send_email" value="1" @checked($errors->any() ? old('send_email') : true) class="mt-0.5 size-4 rounded border-line"><span><span class="font-semibold">Email the login details to the client</span><span class="block text-xs text-muted">Sends the email, password and a sign-in link to this address. Untick to pass them on yourself.</span></span></label>
+                    <button class="btn btn-primary btn-sm">Create login</button>
                 </form>
             </section>
         </div>

@@ -25,10 +25,24 @@ class Notifier
         $this->admins(new PortalMail('Sent: quotation '.$q->reference, [$q->reference.' for '.$q->client->company.' ('.money($q->total, $q->currency).') was emailed to the client.'], 'Open quotation', route('admin.quotations.show', $q)));
     }
 
-    public function quotationAnswered(Quotation $q, bool $accepted): void
+    /**
+     * When acceptance sent the contract out for signature, the client's contract email already thanks them,
+     * so they get one email rather than two.
+     */
+    public function quotationAnswered(Quotation $q, bool $accepted, bool $notifyAdmins = true, ?Contract $contract = null, bool $contractSent = false): void
     {
-        $this->admins(new PortalMail(($accepted ? 'Accepted' : 'Declined').': quotation '.$q->reference, [$q->client->company.' has '.($accepted ? 'accepted' : 'declined').' '.$q->reference.' ("'.$q->title.'", '.money($q->total, $q->currency).').', $accepted ? 'Next: draft the contract and the deposit invoice from the quotation page.' : 'You may want to follow up with the client.'], 'Open quotation', route('admin.quotations.show', $q)));
-        $this->client($q->client, new PortalMail('Thank you: quotation '.$q->reference.' '.($accepted ? 'accepted' : 'declined'), [$accepted ? 'We have received your acceptance of '.$q->reference.'. We will send the contract and deposit invoice shortly.' : 'We have noted that '.$q->reference.' was declined. If a revised quote would help, reply to this email.'], 'View in your portal', route('portal.quotations.show', $q)));
+        $next = match (true) {
+            ! $accepted => 'You may want to follow up with the client.',
+            $contractSent => 'Contract '.$contract->reference.' was generated from it and sent to the client to sign.',
+            $contract !== null => 'Contract '.$contract->reference.' was drafted from it. Review it and send it for signature.',
+            $q->contract_id !== null => 'It is linked to an existing contract, so no new contract was created.',
+            default => 'Next: create the contract from the quotation page.',
+        };
+        $notifyAdmins && $this->admins(new PortalMail(($accepted ? 'Accepted' : 'Declined').': quotation '.$q->reference, [$q->client->company.' has '.($accepted ? 'accepted' : 'declined').' '.$q->reference.' ("'.$q->title.'", '.money($q->total, $q->currency).').', $next], $contract ? 'Open contract' : 'Open quotation', $contract ? route('admin.contracts.show', $contract) : route('admin.quotations.show', $q)));
+        if ($contractSent) {
+            return;
+        }
+        $this->client($q->client, new PortalMail('Thank you: quotation '.$q->reference.' '.($accepted ? 'accepted' : 'declined'), [$accepted ? 'We have received your acceptance of '.$q->reference.'. We are preparing your contract and will email you as soon as it is ready to sign.' : 'We have noted that '.$q->reference.' was declined. If a revised quote would help, reply to this email.'], 'View in your portal', route('portal.quotations.show', $q)));
     }
 
     public function invoiceSent(Invoice $i): void
@@ -52,16 +66,26 @@ class Notifier
             $ok ? 'View payment' : 'Submit again', $ok ? route('portal.payments.show', $p) : route('portal.payments.create', array_filter(['invoice' => $p->invoice_id, 'contract' => $p->contract_id]))));
     }
 
-    public function contractSentForSignature(Contract $c): void
+    public function contractSentForSignature(Contract $c, ?string $note = null, bool $notifyAdmins = true): void
     {
-        $this->client($c->client, new PortalMail('Contract '.$c->reference.' is ready to sign', ['The agreement "'.$c->title.'" ('.$c->amountLabel().') is ready for your signature.', 'Read it in your portal, then sign electronically in under a minute. Work starts once it is signed and the deposit is received.'], 'Read and sign the contract', route('portal.contracts.show', $c)));
-        $this->admins(new PortalMail('Sent for signature: '.$c->reference, [$c->reference.' for '.$c->client->company.' was sent to the client to sign.'], 'Open contract', route('admin.contracts.show', $c)));
+        $this->client($c->client, new PortalMail('Contract '.$c->reference.' is ready to sign', array_values(array_filter([$note, 'The agreement "'.$c->title.'" ('.$c->amountLabel().') is ready for your signature.', 'Read it in your portal, then sign electronically in under a minute. Work starts once it is signed and the deposit is received.'])), 'Read and sign the contract', route('portal.contracts.show', $c)));
+        $notifyAdmins && $this->admins(new PortalMail('Sent for signature: '.$c->reference, [$c->reference.' for '.$c->client->company.' was sent to the client to sign.'], 'Open contract', route('admin.contracts.show', $c)));
     }
 
-    public function contractSigned(Contract $c): void
+    /** One email each: the client gets their signed copy and, when one was issued, the invoice to pay. */
+    public function contractSigned(Contract $c, ?Invoice $invoice = null): void
     {
-        $this->admins(new PortalMail('Signed: contract '.$c->reference, [$c->signed_name.' signed '.$c->reference.' for '.$c->client->company.' on '.$c->signed_at->format('j F Y \a\t g:ia').'.', 'The contract is now active. Next: send the deposit invoice if you have not already.'], 'Open contract', route('admin.contracts.show', $c)));
-        $this->client($c->client, new PortalMail('Signed copy of contract '.$c->reference, ['Thank you for signing "'.$c->title.'". Your signed copy, with the standard terms as agreed, is available in your portal at any time.'], 'Download the signed contract', route('documents.contract', $c)));
+        $this->admins(new PortalMail('Signed: contract '.$c->reference, [
+            $c->signed_name.' signed '.$c->reference.' for '.$c->client->company.' on '.$c->signed_at->format('j F Y \a\t g:ia').'.',
+            $invoice ? 'The contract is now active. Invoice '.$invoice->reference.' ('.$invoice->title.', '.money($invoice->total, $invoice->currency).') was generated and emailed to the client.' : 'The contract is now active. It already had an invoice, so none was generated.',
+        ], 'Open contract', route('admin.contracts.show', $c)));
+
+        $lines = ['Thank you for signing "'.$c->title.'". Your signed copy, with the standard terms as agreed, is available in your portal at any time.'];
+        if ($invoice) {
+            $lines[] = 'Your invoice '.$invoice->reference.' is ready: '.$invoice->title.', '.money($invoice->total, $invoice->currency).($invoice->due_date ? ', due by '.$invoice->due_date->format('j F Y') : '').'.';
+            $lines[] = $invoice->kind === 'deposit' ? 'Work usually starts once the deposit is received. Pay by bank transfer, cheque or cash, then submit the payment in your portal so we can confirm it.' : 'Pay by bank transfer, cheque or cash, then submit the payment in your portal so we can confirm it.';
+        }
+        $this->client($c->client, new PortalMail('Signed copy of contract '.$c->reference, $lines, $invoice ? 'View and pay the invoice' : 'Download the signed contract', $invoice ? route('portal.invoices.show', $invoice) : route('documents.contract', $c)));
     }
 
     public function contractStatus(Contract $c, string $action): void
@@ -97,24 +121,29 @@ class Notifier
 
     /**
      * Login details for one portal user, sent only to that address (never to the client's other logins).
-     * The plain password exists only in this request, so this is the one chance to email it.
+     * Sent immediately rather than queued, so the plain password is never written to the jobs table and a
+     * delivery failure is reported to the admin on the spot.
      */
     public function loginDetails(User $user, string $password, bool $isNew = true): bool
     {
-        $mail = new PortalMail(
-            $isNew ? 'Your '.config('company.short').' client portal login' : 'Your '.config('company.short').' portal password was reset',
-            [
-                $isNew ? 'We have set up your access to the '.config('company.name').' client portal, where you can review quotations, sign contracts, view invoices and submit payments.' : 'A new password has been generated for your client portal login. The old one no longer works.',
+        $company = config('company.name');
+        $mail = $isNew
+            ? new PortalMail('Welcome to the '.config('company.short').' client portal', [
+                'You have been onboarded as a client of '.$company.'. Your client portal is ready: it is where you will review quotations, read and sign contracts, see invoices and submit payments.',
+                'Sign in with these details:',
                 'Email: '.$user->email,
                 'Password: '.$password,
-                'Sign in with the button below. You can change the password at any time after signing in.',
-            ],
-            'Sign in to the portal',
-            route('login'),
-        );
+                'The first time you sign in we will show you around, and you can choose your own password there. Please keep these details private.',
+            ], 'Sign in to the portal', route('login'))
+            : new PortalMail('Your '.config('company.short').' portal password was reset', [
+                'A new password has been generated for your client portal login. The old one no longer works.',
+                'Email: '.$user->email,
+                'Password: '.$password,
+                'Once signed in, choose your own password under Password in the menu.',
+            ], 'Sign in to the portal', route('login'));
 
         return $this->deliver(function () use ($user, $mail) {
-            $user->notify($mail);
+            $user->notifyNow($mail);
 
             return true;
         }, $mail);
@@ -124,6 +153,12 @@ class Notifier
     private function client(Client $client, PortalMail $mail): bool
     {
         return $this->deliver(function () use ($client, $mail) {
+            if (! $client->active) {
+                Log::info('Email not sent: client is inactive.', ['client_id' => $client->id, 'subject' => $mail->subject]);
+                $this->warn($client->company.' is marked inactive, so "'.$mail->subject.'" was not emailed. Reactivate the client to resume emails.');
+
+                return false;
+            }
             $users = $client->users;
             if ($users->isNotEmpty()) {
                 Notification::send($users, $mail);

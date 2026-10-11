@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
 use App\Models\Quotation;
-use App\Services\Notifier;
+use App\Services\QuotationWorkflow;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -20,7 +20,7 @@ class QuotationController extends Controller
     {
         $this->authorizeView($quotation);
 
-        return view('portal.quotations.show', ['quotation' => $quotation->load('items')]);
+        return view('portal.quotations.show', ['quotation' => $quotation->load('items', 'contract')]);
     }
 
     public function answer(Request $request, Quotation $quotation): RedirectResponse
@@ -29,9 +29,16 @@ class QuotationController extends Controller
         abort_unless($request->user()->can('answer', $quotation), 403, 'This quotation can no longer be answered.');
         $answer = $request->validate(['answer' => ['required', 'in:accept,decline']])['answer'];
 
-        $quotation->forceFill($answer === 'accept' ? ['status' => 'accepted', 'accepted_at' => now()] : ['status' => 'declined', 'declined_at' => now()])->save();
-        app(Notifier::class)->quotationAnswered($quotation->load('client.users'), $answer === 'accept');
+        $contract = app(QuotationWorkflow::class)->answer($quotation, $answer === 'accept', $request->user());
 
-        return back()->with('saved', $answer === 'accept' ? 'Thank you. We will be in touch with the contract and deposit invoice.' : 'Quotation declined. Tell us what would make it work.');
+        if ($answer === 'decline') {
+            return back()->with('saved', 'Quotation declined. Tell us what would make it work.');
+        }
+        // When the contract went straight out for signature, take the client to it.
+        if ($contract?->awaitingSignature()) {
+            return redirect()->route('portal.contracts.show', $contract)->with('saved', 'Thank you for accepting. Your contract is ready: read it through, then sign it online.');
+        }
+
+        return back()->with('saved', 'Thank you for accepting. We are preparing your contract and will email you as soon as it is ready to sign.');
     }
 }

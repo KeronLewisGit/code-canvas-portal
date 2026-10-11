@@ -4,8 +4,12 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Client;
+use App\Services\Notifier;
+use App\Services\PortalAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class ClientController extends Controller
@@ -22,11 +26,32 @@ class ClientController extends Controller
         return view('admin.clients.form', ['client' => new Client(['active' => true])]);
     }
 
-    public function store(Request $request): RedirectResponse
+    /** Adding a client can also open their portal login and email the welcome, so onboarding is one step. */
+    public function store(Request $request, PortalAccess $access): RedirectResponse
     {
-        $client = Client::create($this->validated($request));
+        $data = $this->validated($request);
+        $withLogin = $request->boolean('create_login') && $data['active']; // an inactive client cannot sign in anyway
+        if ($withLogin) {
+            $request->validate(['email' => [Rule::unique('users', 'email')]], ['email.unique' => 'A portal login already uses this email. Use a different email, or untick "Create a portal login" and add the login later.']);
+        }
 
-        return redirect()->route('admin.clients.show', $client)->with('saved', 'Client added. Next, create their portal login below.');
+        // The client and its login are saved together; the welcome email goes out only once both exist.
+        $login = null;
+        $client = DB::transaction(function () use ($data, $withLogin, $access, &$login) {
+            $client = Client::create($data);
+            $login = $withLogin ? $access->createLogin($client, $client->contact_name, $client->email, sendEmail: false) : null;
+
+            return $client;
+        });
+
+        $redirect = redirect()->route('admin.clients.show', $client);
+        if (! $login) {
+            return $redirect->with('saved', 'Client added. Create their portal login below when you are ready.');
+        }
+        $login['emailed'] = app(Notifier::class)->loginDetails($login['user'], $login['password'], isNew: true);
+
+        return $redirect->with('saved', $login['emailed'] ? 'Client added and welcome email sent to '.$client->email.'.' : 'Client added with a portal login. The welcome email was not sent, so pass the details on yourself.')
+            ->with('credentials', PortalAccess::banner($login));
     }
 
     public function show(Client $client): View

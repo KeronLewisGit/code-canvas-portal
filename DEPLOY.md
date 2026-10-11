@@ -67,10 +67,15 @@ Never run `php artisan db:seed` on production: it creates demo clients with the 
 ## 3. Check
 
 - `/login` loads with styles. `/.env` returns 403. `/up` returns OK.
-- Sign in, add a client, create a portal login, create a contract and an invoice.
-- Open an incognito window, sign in as the client, submit a bank transfer with a screenshot.
-- Back as admin, verify it on the dashboard and confirm the contract shows as paid.
+- Add a test client with "Create a portal login and email the welcome" ticked, using an address you can read.
+  The welcome email arrives with the sign-in details.
+- In an incognito window, sign in as that client: the welcome screen appears first, and the dashboard says
+  "Your portal is ready" with no payment options.
+- As admin, create a quotation and use **Save and send to client**. As the client, accept it: you land on the
+  generated contract. Sign it: you land on the deposit invoice, and **Submit a payment** appears.
+- Submit a bank transfer with a screenshot, then verify it as admin.
 - Forgot-password sends an email (needs the MAIL_* values).
+- Deactivate the test client afterwards (inactive clients are never emailed).
 
 ## Updating later
 

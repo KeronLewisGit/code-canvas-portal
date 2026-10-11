@@ -4,9 +4,10 @@ namespace App\Jobs;
 
 use App\Models\Contract;
 use App\Models\User;
-use App\Notifications\RenewalReminder;
+use App\Notifications\PortalMail;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\Notification;
 
 /** Emails admins a digest of contracts ending soon that have no renewal yet and will not renew themselves. Runs weekly from the scheduler. */
 class SendRenewalReminders implements ShouldQueue
@@ -20,8 +21,12 @@ class SendRenewalReminders implements ShouldQueue
         if ($ending->isEmpty()) {
             return;
         }
-        foreach (User::where('role', 'admin')->get() as $admin) {
-            $admin->notify(new RenewalReminder($ending));
-        }
+        $count = $ending->count();
+        Notification::send(User::where('role', 'admin')->get(), new PortalMail(
+            $count.' contract'.($count === 1 ? '' : 's').' ending soon',
+            ['These contracts end within '.$days.' days and have no renewal yet:', ...$ending->map(fn (Contract $c) => $c->reference.' · '.$c->client->company.' · '.$c->title.' · ends '.$c->end_date->format('j M Y'))->all()],
+            'Open the revenue report',
+            route('admin.reports.revenue'),
+        ));
     }
 }

@@ -1,11 +1,16 @@
 <x-layout title="Banking readiness report">
     @php($m = $report['meta']) @php($p = $report['portfolio']) @php($cur = $m['base_currency'])
-    <x-page title="Reports" eyebrow="Banking readiness report · issued {{ \Illuminate\Support\Carbon::parse($m['issued_at'])->format('j F Y, g:ia') }} · {{ $m['contracts_included'] }} contracts included">
+    <x-page title="Reports" eyebrow="Banking readiness" :subtitle="'Issued '.(\Illuminate\Support\Carbon::parse($m['issued_at'])->format('j F Y, g:ia')).' · '.($m['contracts_included']).' contracts included'">
         <x-slot:actions>
-            <button onclick="window.print()" class="btn btn-light">Print or save as PDF</button>
-            @foreach (['register' => 'Signed register', 'summaries' => 'Contract summaries', 'receivables' => 'Receivables', 'payments' => 'Payments', 'forecast' => 'Cash-flow forecast'] as $part => $label)
-                <a href="{{ route('admin.reports.banking.export', ['part' => $part, 'all' => $all ? 1 : null]) }}" class="btn btn-light btn-sm">CSV: {{ $label }}</a>
-            @endforeach
+            <button type="button" onclick="window.print()" class="btn btn-light">Print or save as PDF</button>
+            <details class="relative">
+                <summary class="btn btn-light list-none">Export CSV</summary>
+                <div class="absolute right-0 z-10 mt-2 w-56 rounded-xl bg-white p-2 shadow-lg ring-1 ring-line">
+                    @foreach (['register' => 'Signed register', 'summaries' => 'Contract summaries', 'receivables' => 'Receivables', 'payments' => 'Payments', 'forecast' => 'Cash-flow forecast'] as $part => $label)
+                        <a href="{{ route('admin.reports.banking.export', ['part' => $part, 'all' => $all ? 1 : null]) }}" class="block rounded-lg px-3 py-2 text-sm font-semibold hover:bg-paper">{{ $label }}</a>
+                    @endforeach
+                </div>
+            </details>
         </x-slot:actions>
     </x-page>
     <x-tabs :items="[['admin.reports.revenue', 'Revenue', 'admin.reports.revenue'], ['admin.reports.banking', 'Banking readiness report', 'admin.reports.banking']]" />

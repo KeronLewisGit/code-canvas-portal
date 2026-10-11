@@ -1,10 +1,10 @@
 <x-layout title="Invoices">
-    <x-page title="Invoices" eyebrow="{{ $invoices->total() }} total">
+    <x-page title="Invoices" :eyebrow="($invoices->total()).' total'">
         <x-slot:actions><a href="{{ route('admin.invoices.create') }}" class="btn btn-primary">New invoice</a></x-slot:actions>
     </x-page>
     <form class="mb-6 flex flex-wrap gap-2" aria-label="Filters" data-autosubmit>
-        <select name="status" class="input max-w-40"><option value="">Any status</option>@foreach (config('company.invoice_statuses') as $k => $v)<option value="{{ $k }}" @selected(request('status') === $k)>{{ $v }}</option>@endforeach</select>
-        <select name="client" class="input max-w-52"><option value="">Any client</option>@foreach ($clients as $c)<option value="{{ $c->id }}" @selected((int) request('client') === $c->id)>{{ $c->company }}</option>@endforeach</select>
+        <select name="status" aria-label="Status" class="input max-w-40"><option value="">Any status</option>@foreach (config('company.invoice_statuses') as $k => $v)<option value="{{ $k }}" @selected(request('status') === $k)>{{ $v }}</option>@endforeach</select>
+        <select name="client" aria-label="Client" class="input max-w-52"><option value="">Any client</option>@foreach ($clients as $c)<option value="{{ $c->id }}" @selected((int) request('client') === $c->id)>{{ $c->company }}</option>@endforeach</select>
         <button class="sr-only focus:not-sr-only btn btn-light">Apply filters</button>
     </form>
     <div class="card overflow-x-auto p-0 sm:p-0">

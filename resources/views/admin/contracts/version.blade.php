@@ -1,5 +1,5 @@
 <x-layout :title="$contract->reference.' v'.$record->version">
-    <x-page :title="'Version '.$record->version.' of '.$contract->reference" eyebrow="Immutable snapshot · saved {{ $record->created_at->format('j M Y, g:ia') }}{{ $record->author ? ' by '.$record->author->name : '' }}{{ $record->reason ? ' · '.$record->reason : '' }}" :back="[route('admin.contracts.show', $contract), 'Back to contract']" />
+    <x-page :title="'Version '.$record->version.' of '.$contract->reference" eyebrow="Saved version" :subtitle="'Immutable snapshot, saved '.($record->created_at->format('j M Y, g:ia')).($record->author ? ' by '.$record->author->name : '').($record->reason ? ' · '.$record->reason : '')" :back="[route('admin.contracts.show', $contract), 'Back to contract']" />
     <div class="card overflow-x-auto">
         <table class="table min-w-[640px]"><thead><tr><th>Field</th><th>Version {{ $record->version }}</th><th>Current (v{{ $contract->version }})</th></tr></thead><tbody>
             @foreach ($record->snapshot as $field => $value)

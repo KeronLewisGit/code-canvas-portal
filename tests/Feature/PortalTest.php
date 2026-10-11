@@ -134,6 +134,8 @@ class PortalTest extends TestCase
         $this->assertSame(2, $quotation->items()->count());
         $this->assertEquals(5000, $quotation->total);
 
+        $this->actingAs($this->admin)->post(route('admin.quotations.invoice', $quotation))->assertForbidden(); // not accepted yet
+        $quotation->forceFill(['status' => 'accepted'])->save();
         $this->actingAs($this->admin)->post(route('admin.quotations.invoice', $quotation))->assertRedirect();
         $invoice = Invoice::first();
         $this->assertEquals(5000, $invoice->total);
@@ -171,7 +173,7 @@ class PortalTest extends TestCase
 
         $future = Contract::create(['client_id' => $this->client->id, 'title' => 'Later', 'type' => 'hosting', 'start_date' => now()->addMonth(), 'amount' => 100, 'billing_cycle' => 'yearly', 'status' => 'active']);
         $this->assertSame(0, $future->cyclesElapsed());
-        $this->assertSame('paid', $future->paymentState(), 'nothing is due before the start date');
+        $this->assertSame('not_due', $future->paymentState(), 'nothing is due before the start date');
     }
 
     public function test_client_page_shows_payments_only_once_a_contract_is_invoiced(): void

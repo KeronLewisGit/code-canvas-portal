@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
 use App\Models\Contract;
+use App\Services\ContractInvoicing;
 use App\Services\ContractLifecycle;
 use App\Services\Notifier;
 use App\Support\Audit;
@@ -19,7 +20,7 @@ class ContractController extends Controller
 {
     public function index(Request $request): View
     {
-        return view('portal.contracts.index', ['contracts' => $request->user()->client->contracts()->where('status', '!=', 'draft')->get()]);
+        return view('portal.contracts.index', ['contracts' => $request->user()->client->contracts()->visibleToClient()->get()]);
     }
 
     public function show(Request $request, Contract $contract): View
@@ -81,7 +82,13 @@ class ContractController extends Controller
 
             return $this->notOpenForSignature($contract->fresh());
         }
-        app(Notifier::class)->contractSigned($contract->fresh(['client.users']));
+        $invoice = app(ContractInvoicing::class)->issueFirstInvoice($contract);
+        app(Notifier::class)->contractSigned($contract->fresh(['client.users']), $invoice);
+
+        // Next step for the client: the invoice that was just issued.
+        if ($invoice) {
+            return redirect()->route('portal.invoices.show', $invoice)->with('saved', 'Thank you. '.$contract->reference.' is signed. Your invoice is ready below, and you can pay it whenever you are ready.');
+        }
 
         return redirect()->route('portal.contracts.show', $contract)->with('saved', 'Thank you. '.$contract->reference.' is signed. You can download the signed copy at any time.');
     }

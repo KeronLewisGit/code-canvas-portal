@@ -139,9 +139,15 @@ class GuardsTest extends TestCase
         $this->assertSame($contractA->id, Payment::first()->contract_id);
     }
 
-    public function test_client_can_pay_a_deposit_on_an_approved_contract(): void
+    public function test_client_can_pay_a_deposit_on_an_approved_contract_once_it_is_sent(): void
     {
         $approved = $this->contract(['status' => 'approved']);
+        // Approved but never sent to the client: hidden from them and not theirs to pay yet.
+        $this->actingAs($this->clientUser)->get(route('portal.contracts.show', $approved))->assertNotFound();
+        $this->actingAs($this->clientUser)->post(route('portal.payments.store'), ['contract_id' => $approved->id, 'amount' => 500, 'method' => 'cash', 'paid_on' => now()->format('Y-m-d')])->assertRedirect(route('portal.dashboard'));
+        $this->assertSame(0, Payment::count());
+
+        $approved->forceFill(['sent_for_signature_at' => now()])->save();
         $this->actingAs($this->clientUser)->get(route('portal.contracts.show', $approved))->assertOk()->assertSee('Submit a payment');
         $this->actingAs($this->clientUser)->get(route('portal.payments.create', ['contract' => $approved->id]))->assertOk()->assertSee('selected');
         $this->actingAs($this->clientUser)->post(route('portal.payments.store'), ['contract_id' => $approved->id, 'amount' => 500, 'method' => 'cash', 'paid_on' => now()->format('Y-m-d')])->assertRedirect();

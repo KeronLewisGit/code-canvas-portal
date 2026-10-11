@@ -29,6 +29,7 @@ class ReviewFixesTest extends TestCase
         $this->admin = User::create(['name' => 'Admin', 'email' => 'admin@example.com', 'password' => 'secret-password', 'role' => 'admin']);
         $this->client = Client::create(['company' => 'Acme', 'contact_name' => 'Ann', 'email' => 'ann@acme.test']);
         $this->clientUser = User::create(['name' => 'Ann', 'email' => 'ann@acme.test', 'password' => 'secret-password', 'role' => 'client', 'client_id' => $this->client->id]);
+        $this->clientUser->forceFill(['welcomed_at' => now()])->save();
     }
 
     public function test_deactivated_client_is_logged_out_on_the_next_request(): void

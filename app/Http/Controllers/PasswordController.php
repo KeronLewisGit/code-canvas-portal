@@ -37,7 +37,7 @@ class PasswordController extends Controller
         $request->validate(['token' => ['required'], 'email' => ['required', 'email'], 'password' => ['required', 'confirmed', PasswordRule::min(10)]]);
 
         $status = Password::reset($request->only('email', 'password', 'password_confirmation', 'token'), function ($user, string $password) {
-            $user->forceFill(['password' => $password, 'remember_token' => Str::random(60)])->save();
+            $user->forceFill(['password' => $password, 'remember_token' => Str::random(60), 'password_changed_at' => now()])->save();
             event(new PasswordReset($user));
         });
 
@@ -54,7 +54,7 @@ class PasswordController extends Controller
     public function change(Request $request): RedirectResponse
     {
         $data = $request->validate(['current_password' => ['required', 'current_password'], 'password' => ['required', 'confirmed', PasswordRule::min(10)]]);
-        $request->user()->forceFill(['password' => $data['password']])->save(); // the User model hashes it
+        $request->user()->forceFill(['password' => $data['password'], 'password_changed_at' => now()])->save(); // the User model hashes it
         Auth::logoutOtherDevices($data['password']); // rotates the remember-me token so old "remember me" cookies stop working
         $request->session()->regenerate();
 

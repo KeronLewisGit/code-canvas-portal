@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Contract;
 use App\Models\Setting;
 use App\Support\Audit;
 use Illuminate\Http\RedirectResponse;
@@ -20,6 +21,7 @@ class SettingsController extends Controller
             'groups' => collect(self::GROUPS)->map(fn ($label, $key) => ['key' => $key, 'label' => $label, 'clauses' => collect(Setting::get($key, []))->map(fn ($text, $heading) => ['heading' => $heading, 'text' => $text])->values()->all(), 'updated' => Setting::find($key)?->updated_at]),
             'deposit' => Setting::get('deposit_percent'),
             'lateFee' => Setting::get('late_fee_monthly_percent'),
+            'previewContractId' => Contract::query()->latest()->value('id'),
         ]);
     }
 

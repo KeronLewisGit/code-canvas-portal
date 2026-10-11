@@ -1,18 +1,20 @@
 <x-layout title="Settings">
-    <x-page title="Settings" eyebrow="Standard terms and rates printed on every contract, invoice and quotation">
-        <x-slot:actions><a href="{{ route('documents.contract', ['contract' => \App\Models\Contract::query()->latest()->value('id') ?? 0]) }}" target="_blank" class="btn btn-light" @if (! \App\Models\Contract::exists()) hidden @endif>Preview on latest contract</a></x-slot:actions>
+    <x-page title="Settings" subtitle="Standard terms and rates printed on every contract, invoice and quotation.">
+        @if ($previewContractId)
+            <x-slot:actions><a href="{{ route('documents.contract', $previewContractId) }}" target="_blank" class="btn btn-light">Preview on latest contract</a></x-slot:actions>
+        @endif
     </x-page>
 
     <div class="mb-6 grid gap-6 lg:grid-cols-3">
         <form method="post" action="{{ route('admin.settings.rates') }}" class="card space-y-4 text-sm">
             @csrf @method('put')
-            <h2 class="text-lg">Rates used in the terms</h2>
+            <h2 class="text-lg font-bold">Rates used in the terms</h2>
             <x-field label="Deposit before work starts" name="deposit_percent" required hint="Fills {deposit} in the contract terms."><div class="flex items-center gap-2"><input id="deposit_percent" name="deposit_percent" type="number" inputmode="decimal" step="1" min="0" max="100" value="{{ old('deposit_percent', $deposit) }}" required class="input max-w-28"><span class="text-muted">%</span></div></x-field>
             <x-field label="Late payment fee per month" name="late_fee_monthly_percent" required hint="Fills {late_fee}."><div class="flex items-center gap-2"><input id="late_fee_monthly_percent" name="late_fee_monthly_percent" type="number" inputmode="decimal" step="0.1" min="0" max="20" value="{{ old('late_fee_monthly_percent', $lateFee) }}" required class="input max-w-28"><span class="text-muted">%</span></div></x-field>
             <button class="btn btn-primary">Save rates</button>
         </form>
         <div class="card text-sm lg:col-span-2">
-            <h2 class="text-lg">How this works</h2>
+            <h2 class="text-lg font-bold">How this works</h2>
             <ul class="mt-4 list-disc space-y-1 pl-5 text-muted">
                 <li>Each group below is the full set of clauses printed on that document type. Edit the wording, add or remove clauses, and reorder them with the arrows.</li>
                 <li>Contract clauses can use placeholders that fill in per contract: <code class="rounded bg-paper px-1">{deposit}</code> <code class="rounded bg-paper px-1">{payment_days}</code> <code class="rounded bg-paper px-1">{late_fee}</code> <code class="rounded bg-paper px-1">{notice}</code> <code class="rounded bg-paper px-1">{cycle}</code> <code class="rounded bg-paper px-1">{company}</code> <code class="rounded bg-paper px-1">{short}</code>. A clause headed exactly "Recurring services" is printed only on recurring contracts.</li>
@@ -27,7 +29,7 @@
             @csrf @method('put')
             <input type="hidden" name="group" value="{{ $group['key'] }}">
             <div class="flex flex-wrap items-center justify-between gap-3">
-                <div><h2 class="text-lg">{{ $group['label'] }}</h2><p class="text-sm text-muted"><span x-text="clauses.length"></span> clauses{{ $group['updated'] ? ' · last saved '.$group['updated']->format('j M Y, g:ia') : ' · built-in defaults' }}</p></div>
+                <div><h2 class="text-lg font-bold">{{ $group['label'] }}</h2><p class="text-sm text-muted"><span x-text="clauses.length"></span> clauses{{ $group['updated'] ? ' · last saved '.$group['updated']->format('j M Y, g:ia') : ' · built-in defaults' }}</p></div>
                 <button type="button" @click="add()" class="btn btn-light btn-sm">Add clause</button>
             </div>
             <ol class="mt-4 space-y-3">

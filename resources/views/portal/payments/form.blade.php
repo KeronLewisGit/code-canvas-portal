@@ -1,17 +1,18 @@
 <x-layout title="Submit a payment">
     @php($bank = config('company.bank'))
     @php($methods = config('company.payment_methods'))
-    <x-page title="Submit a payment" eyebrow="We verify every payment before it counts toward your balance" :back="[route('portal.payments.index'), 'Payments']" />
+    <x-page title="Submit a payment" subtitle="We verify every payment before it counts toward your balance, usually within one working day." :back="[route('portal.payments.index'), 'Payments']" />
     <div class="grid gap-6 lg:grid-cols-3">
         <form method="post" action="{{ route('portal.payments.store') }}" enctype="multipart/form-data" class="card grid gap-5 sm:grid-cols-2 lg:col-span-2" x-data="paymentForm(@js(old('method', $payment->method)), @js(collect($methods)->map->proof))">
             @csrf
-            <x-field label="Invoice" name="invoice_id" hint="Pick the invoice if you have one.">
-                <select id="invoice_id" name="invoice_id" class="input"><option value="">No specific invoice</option>@foreach ($invoices as $i)<option value="{{ $i->id }}" @selected((int) old('invoice_id', $payment->invoice_id) === $i->id)>{{ $i->reference }} · balance {{ money($i->balance(), $i->currency) }}</option>@endforeach</select>
+            <p class="text-sm text-muted sm:col-span-2">Choose the invoice you are paying. If you are paying toward a contract without an invoice, choose the contract instead.</p>
+            <x-field label="Invoice" name="invoice_id">
+                <select id="invoice_id" name="invoice_id" class="input" @change="const b = $event.target.selectedOptions[0]?.dataset.balance; if (b) $refs.amount.value = b"><option value="">No specific invoice</option>@foreach ($invoices as $i)<option value="{{ $i->id }}" data-balance="{{ number_format($i->balance(), 2, '.', '') }}" @selected((int) old('invoice_id', $payment->invoice_id) === $i->id)>{{ $i->reference }} · balance {{ money($i->balance(), $i->currency) }}</option>@endforeach</select>
             </x-field>
-            <x-field label="Contract" name="contract_id" hint="Or the contract this payment is for.">
-                <select id="contract_id" name="contract_id" class="input"><option value="">Choose a contract</option>@foreach ($contracts as $c)<option value="{{ $c->id }}" @selected((int) old('contract_id', $payment->contract_id) === $c->id)>{{ $c->title }} · balance {{ money($c->balance(), $c->currency) }}</option>@endforeach</select>
+            <x-field label="Contract" name="contract_id">
+                <select id="contract_id" name="contract_id" class="input"><option value="">No specific contract</option>@foreach ($contracts as $c)<option value="{{ $c->id }}" @selected((int) old('contract_id', $payment->contract_id) === $c->id)>{{ $c->title }} · balance {{ money($c->balance(), $c->currency) }}</option>@endforeach</select>
             </x-field>
-            <x-field label="Amount paid" name="amount" required><input id="amount" name="amount" type="number" inputmode="decimal" step="0.01" min="0.01" value="{{ old('amount', $payment->amount) }}" required class="input"></x-field>
+            <x-field label="Amount paid" name="amount" required><input id="amount" x-ref="amount" name="amount" type="number" inputmode="decimal" step="0.01" min="0.01" value="{{ old('amount', $payment->amount) }}" required class="input"></x-field>
             <x-field label="Date paid" name="paid_on" required><input id="paid_on" name="paid_on" type="date" max="{{ now()->format('Y-m-d') }}" value="{{ old('paid_on', $payment->paid_on?->format('Y-m-d')) }}" required class="input"></x-field>
             <x-field label="How did you pay?" name="method" required class="sm:col-span-2">
                 <div class="grid gap-2 sm:grid-cols-3">
@@ -30,7 +31,8 @@
             <x-field label="Anything we should know?" name="note" class="sm:col-span-2"><textarea id="note" name="note" rows="2" class="input">{{ old('note') }}</textarea></x-field>
             <div class="flex gap-2 sm:col-span-2"><button class="btn btn-primary">Submit payment</button><a href="{{ route('portal.payments.index') }}" class="btn btn-light">Cancel</a></div>
         </form>
-        <aside class="space-y-6">
+        {{-- On phones the bank details come first: people need them before they pay. --}}
+        <aside class="order-first space-y-6 lg:order-none">
             <section class="card text-sm">
                 <h2 class="text-lg font-bold">Bank transfer details</h2>
                 <dl class="mt-4 space-y-2">

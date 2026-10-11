@@ -31,16 +31,20 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $accepted_at
  * @property Carbon|null $declined_at
  * @property Carbon|null $reminded_at
+ * @property string|null $contract_type
+ * @property string|null $billing_cycle
+ * @property int|null $contract_term_months
+ * @property bool $auto_send_contract
  * @property-read Client $client
  */
-#[Fillable(['reference', 'client_id', 'contract_id', 'title', 'issue_date', 'valid_until', 'currency', 'tax_rate', 'status', 'intro', 'notes', 'sent_at', 'accepted_at', 'declined_at', 'reminded_at'])]
+#[Fillable(['reference', 'client_id', 'contract_id', 'title', 'issue_date', 'valid_until', 'currency', 'tax_rate', 'status', 'intro', 'notes', 'sent_at', 'accepted_at', 'declined_at', 'reminded_at', 'contract_type', 'billing_cycle', 'contract_term_months', 'auto_send_contract'])]
 class Quotation extends Model
 {
     use DateRules, HasLineItems, HasReference;
 
     protected function casts(): array
     {
-        return ['issue_date' => 'date', 'valid_until' => 'date', 'sent_at' => 'datetime', 'accepted_at' => 'datetime', 'declined_at' => 'datetime', 'reminded_at' => 'datetime', 'subtotal' => 'decimal:2', 'tax_rate' => 'decimal:2', 'tax_amount' => 'decimal:2', 'total' => 'decimal:2'];
+        return ['issue_date' => 'date', 'valid_until' => 'date', 'sent_at' => 'datetime', 'accepted_at' => 'datetime', 'declined_at' => 'datetime', 'reminded_at' => 'datetime', 'auto_send_contract' => 'boolean', 'contract_term_months' => 'integer', 'subtotal' => 'decimal:2', 'tax_rate' => 'decimal:2', 'tax_amount' => 'decimal:2', 'total' => 'decimal:2'];
     }
 
     /** @return BelongsTo<Client, $this> */

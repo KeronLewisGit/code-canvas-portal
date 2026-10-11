@@ -1,5 +1,5 @@
 <x-layout title="Dashboard">
-    <x-page title="Good {{ now()->hour < 12 ? 'morning' : (now()->hour < 18 ? 'afternoon' : 'evening') }}, {{ auth()->user()->name }}." eyebrow="{{ now()->format('l j F Y') }}">
+    <x-page :title="'Good '.(now()->hour < 12 ? 'morning' : (now()->hour < 18 ? 'afternoon' : 'evening')).', '.(auth()->user()->name).'.'" :eyebrow="(now()->format('l j F Y'))">
         <x-slot:actions>
             <a href="{{ route('admin.quotations.create') }}" class="btn btn-light">New quotation</a>
             <a href="{{ route('admin.contracts.create') }}" class="btn btn-primary">New contract</a>
@@ -24,9 +24,9 @@
         <section class="card">
             <h2 class="text-lg font-bold">Needs attention</h2>
             <div class="mt-4 space-y-3 text-sm">
-                @forelse ($overdue as $i)<p class="flex items-center justify-between gap-3"><span><x-badge status="overdue" class="mr-2">Overdue</x-badge><a href="{{ route('admin.invoices.show', $i) }}" class="font-semibold hover:text-brand-700">{{ $i->reference }}</a> {{ $i->client->company }}</span><span class="tabular-nums">{{ money($i->balance(), $i->currency) }}</span></p>@empty @endforelse
-                @foreach ($ending as $c)<p class="flex items-center justify-between gap-3"><span><x-badge status="pending" class="mr-2">Ends {{ $c->end_date->format('j M') }}</x-badge><a href="{{ route('admin.contracts.show', $c) }}" class="font-semibold hover:text-brand-700">{{ $c->reference }}</a> {{ $c->client->company }}</span></p>@endforeach
-                @foreach ($unsigned as $c)<p class="flex items-center justify-between gap-3"><span><x-badge status="pending" class="mr-2">Unsigned</x-badge><a href="{{ route('admin.contracts.show', $c) }}" class="font-semibold hover:text-brand-700">{{ $c->reference }}</a> {{ $c->client->company }}</span><span class="text-xs text-muted">{{ $c->awaitingSignature() ? 'sent '.$c->sent_for_signature_at->diffForHumans() : 'not sent' }}</span></p>@endforeach
+                @forelse ($overdue as $i)<p class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1"><span><x-badge status="overdue" class="mr-2">Overdue</x-badge><a href="{{ route('admin.invoices.show', $i) }}" class="font-semibold hover:text-brand-700">{{ $i->reference }}</a> {{ $i->client->company }}</span><span class="tabular-nums">{{ money($i->balance(), $i->currency) }}</span></p>@empty @endforelse
+                @foreach ($ending as $c)<p class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1"><span><x-badge status="pending" class="mr-2">Ends {{ $c->end_date->format('j M') }}</x-badge><a href="{{ route('admin.contracts.show', $c) }}" class="font-semibold hover:text-brand-700">{{ $c->reference }}</a> {{ $c->client->company }}</span></p>@endforeach
+                @foreach ($unsigned as $c)<p class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1"><span><x-badge status="pending" class="mr-2">Unsigned</x-badge><a href="{{ route('admin.contracts.show', $c) }}" class="font-semibold hover:text-brand-700">{{ $c->reference }}</a> {{ $c->client->company }}</span><span class="text-xs text-muted">{{ $c->awaitingSignature() ? 'sent '.$c->sent_for_signature_at->diffForHumans() : 'not sent' }}</span></p>@endforeach
                 @if ($overdue->isEmpty() && $ending->isEmpty() && $unsigned->isEmpty())<p class="text-muted">Nothing overdue, nothing ending in the next 30 days, everything live is signed.</p>@endif
             </div>
             <p class="mt-4 text-sm"><a href="{{ route('admin.reports.revenue') }}" class="font-semibold text-brand-700 hover:underline">Revenue, forecasts and renewals in Reports</a></p>

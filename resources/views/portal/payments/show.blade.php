@@ -1,5 +1,5 @@
 <x-layout title="Payment">
-    <x-page :title="money($payment->amount, $payment->currency)" eyebrow="{{ $payment->methodName() }} · {{ $payment->paid_on->format('j F Y') }}" :back="[route('portal.payments.index'), 'Payments']" />
+    <x-page :title="money($payment->amount, $payment->currency)" :eyebrow="($payment->methodName()).' · '.($payment->paid_on->format('j F Y'))" :back="[route('portal.payments.index'), 'Payments']" />
     <div class="card max-w-2xl text-sm">
         <div class="flex items-center justify-between"><h2 class="text-lg font-bold">Status</h2><x-badge :status="$payment->status" /></div>
         @if ($payment->status === 'pending')<p class="mt-2 text-muted">We are checking this against our records. Your balance updates once it is verified, usually within one working day.</p>

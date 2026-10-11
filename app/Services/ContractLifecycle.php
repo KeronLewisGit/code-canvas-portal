@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Contract;
 use App\Models\User;
 use App\Support\Audit;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use InvalidArgumentException;
 
@@ -56,6 +57,30 @@ class ContractLifecycle
     }
 
     /** Apply new material terms, keeping an immutable copy of the previous version. */
+    /**
+     * Issue the contract to the client: a draft is approved on the way out, the request is stamped and logged,
+     * and the client is emailed to review and sign. It activates when they sign.
+     */
+    public function sendForSignature(Contract $contract, ?User $by = null, ?string $clientNote = null, bool $notifyAdmins = true): Contract
+    {
+        DB::transaction(function () use ($contract, $by) {
+            if ($contract->status === 'draft') {
+                $this->transition($contract, 'approve', $by);
+            }
+            $contract->forceFill(['sent_for_signature_at' => now()])->save();
+            Audit::log($contract, 'sent_for_signature');
+        });
+        app(Notifier::class)->contractSentForSignature($contract->fresh(['client.users']), $clientNote, $notifyAdmins);
+
+        return $contract;
+    }
+
+    /** Unsigned draft, approved or active contracts can be (re)sent for signature. */
+    public static function canSendForSignature(Contract $contract): bool
+    {
+        return in_array($contract->status, ['draft', 'approved', 'active']) && ! $contract->isSigned();
+    }
+
     public function amend(Contract $contract, array $attributes, ?User $by = null, ?string $reason = null): Contract
     {
         $contract->refresh();

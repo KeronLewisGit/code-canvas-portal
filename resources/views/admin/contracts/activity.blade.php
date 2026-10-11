@@ -1,5 +1,5 @@
 <x-layout :title="'Audit log · '.$contract->reference">
-    <x-page :title="'Audit log for '.$contract->reference" eyebrow="{{ $contract->title }}" :back="[route('admin.contracts.show', $contract), 'Back to contract']" />
+    <x-page :title="'Audit log for '.$contract->reference" :eyebrow="($contract->title)" :back="[route('admin.contracts.show', $contract), 'Back to contract']" />
     <div class="card overflow-x-auto">
         <table class="table min-w-[640px]"><thead><tr><th>When</th><th>Who</th><th>Action</th><th>Details</th><th>IP</th></tr></thead><tbody>
             @forelse ($activity as $a)
