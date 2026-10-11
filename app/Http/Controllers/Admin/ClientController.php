@@ -16,7 +16,11 @@ class ClientController extends Controller
 {
     public function index(Request $request): View
     {
-        $clients = Client::withCount('contracts')->when($request->filled('q'), fn ($q) => $q->where(fn ($w) => $w->where('company', 'like', '%'.$request->q.'%')->orWhere('contact_name', 'like', '%'.$request->q.'%')->orWhere('email', 'like', '%'.$request->q.'%')))->orderBy('company')->paginate(25)->withQueryString();
+        $clients = Client::withCount('contracts')
+            ->when($request->filled('q'), fn ($q) => $q->where(fn ($w) => $w->where('company', 'like', '%'.$request->q.'%')->orWhere('contact_name', 'like', '%'.$request->q.'%')->orWhere('email', 'like', '%'.$request->q.'%')))
+            ->when(array_key_exists((string) $request->type, Client::TYPES), fn ($q) => $q->where('type', $request->type))
+            ->when(in_array($request->status, ['active', 'inactive'], true), fn ($q) => $q->where('active', $request->status === 'active'))
+            ->orderBy('company')->paginate(25)->withQueryString();
 
         return view('admin.clients.index', compact('clients'));
     }

@@ -70,4 +70,17 @@ class ClientTypeTest extends TestCase
     {
         $this->actingAs($this->admin)->get(route('admin.clients.create'))->assertSee('A company or organisation')->assertSee('An individual');
     }
+
+    public function test_the_client_list_shows_the_type_and_filters_by_type_and_status(): void
+    {
+        Client::create(['type' => 'company', 'company' => 'Acme Ltd', 'contact_name' => 'Ann', 'email' => 'ann@acme.test']);
+        Client::create(['type' => 'individual', 'company' => 'Rachel Agostini', 'contact_name' => 'Rachel Agostini', 'email' => 'rachel@example.test', 'active' => false]);
+        $list = fn (array $query = []) => $this->actingAs($this->admin)->get(route('admin.clients.index', $query))->assertOk();
+
+        $list()->assertSee('<th>Type</th>', false)->assertSeeInOrder(['Acme Ltd', 'Company', 'Rachel Agostini', 'Individual']);
+        $list(['type' => 'individual'])->assertSee('Rachel Agostini')->assertDontSee('Acme Ltd');
+        $list(['type' => 'company'])->assertSee('Acme Ltd')->assertDontSee('Rachel Agostini');
+        $list(['status' => 'inactive'])->assertSee('Rachel Agostini')->assertDontSee('Acme Ltd');
+        $list(['type' => 'company', 'status' => 'inactive'])->assertSee('No clients match these filters.');
+    }
 }
