@@ -10,6 +10,8 @@
     'pen' => '<path d="M4 20h4l10-10-4-4L4 16z"/><path d="M12 8l4 4"/>',
     'key' => '<circle cx="8" cy="15" r="4"/><path d="M11 12 20 3M17 6l2 2M14 9l2 2"/>',
     'logout' => '<path d="M10 4H5v16h5"/><path d="M14 8l4 4-4 4M18 12H9"/>',
+    'mail' => '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
+    'trash' => '<path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/>',
     'close' => '<path d="M6 6l12 12M18 6 6 18"/>',
     'menu' => '<path d="M4 7h16M4 12h16M4 17h16"/>',
     'chart' => '<path d="M4 20h16"/><path d="M7 16v-5M12 16V8M17 16v-3"/>',

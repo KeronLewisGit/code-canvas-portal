@@ -173,4 +173,25 @@ class PortalTest extends TestCase
         $this->assertSame(0, $future->cyclesElapsed());
         $this->assertSame('paid', $future->paymentState(), 'nothing is due before the start date');
     }
+
+    public function test_client_page_shows_payments_only_once_a_contract_is_invoiced(): void
+    {
+        $page = fn () => $this->actingAs($this->admin)->get(route('admin.clients.show', $this->client))->assertOk();
+
+        $page()->assertDontSee('Record a payment');
+
+        Invoice::create(['client_id' => $this->client->id, 'title' => 'Loose', 'issue_date' => now(), 'status' => 'sent']);
+        $draft = Invoice::create(['client_id' => $this->client->id, 'contract_id' => $this->contract->id, 'title' => 'Deposit', 'issue_date' => now(), 'status' => 'draft']);
+        $page()->assertDontSee('Record a payment');
+
+        $draft->forceFill(['status' => 'sent'])->save();
+        $page()->assertSee('Record a payment');
+    }
+
+    public function test_client_page_keeps_showing_payments_already_recorded(): void
+    {
+        Payment::create(['client_id' => $this->client->id, 'contract_id' => $this->contract->id, 'amount' => 100, 'currency' => 'TTD', 'method' => 'bank_transfer', 'paid_on' => now(), 'status' => 'verified']);
+
+        $this->actingAs($this->admin)->get(route('admin.clients.show', $this->client))->assertOk()->assertSee('Record a payment');
+    }
 }
