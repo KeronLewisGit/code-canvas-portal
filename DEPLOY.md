@@ -99,22 +99,28 @@ gunzip < ~/backups/db-YYYY-MM-DD-HHMM.sql.gz | mysql -u u269010508_ccportal -p u
 tar -xzf ~/backups/files-YYYY-MM-DD-HHMM.tgz -C ~/public_html
 ```
 
-## Updating later
+## Updating later (Hostinger Git auto-deploy)
 
-Push from your Mac, then on the server:
+Hostinger's Git auto-deploy pulls each push into `public_html`, but runs nothing after the pull. `scripts/post-deploy.sh`
+finishes every deploy: it installs PHP packages when `composer.lock` changed, and when migrations are pending it puts the
+site in maintenance mode, backs up, and migrates. It then rebuilds Laravel's caches, so new pages and routes never meet
+stale cached ones. Set it up once as a cron job (hPanel → Advanced → Cron Jobs), every minute:
 
-```sh
-bash ~/public_html/scripts/deploy.sh
+```
+* * * * * bash ~/public_html/scripts/post-deploy.sh >> ~/public_html/storage/logs/deploy.log 2>&1
 ```
 
-It puts the site in maintenance mode, records the current version, backs up, pulls the pushed code, installs packages,
-migrates, rebuilds caches and brings the site back up. If an update misbehaves:
+It exits immediately when nothing new was pulled. After a push, the site is fully updated within about a minute;
+`storage/logs/deploy.log` shows each deploy.
 
-```sh
-bash ~/public_html/scripts/rollback.sh
-```
+Every push to the deployed branch goes live, even if GitHub's checks (Actions tab) fail, so only push to it once the
+checks are green. Keep work in progress on another branch, or point Hostinger's auto-deploy at a `production` branch
+and merge into it when ready.
 
-Rollback restores the code only. If the bad update ran migrations, check `php artisan migrate:status` and restore the
-database backup the deploy took if needed.
+**Rolling back:** with auto-deploy, undo the change in git and push again (`git revert <commit> && git push`). The
+deploy log shows the previous commit. If the bad deploy ran migrations, restore the backup it took (`~/backups/db-*.sql.gz`).
+
+`scripts/deploy.sh` and `scripts/rollback.sh` are for servers that are **not** on auto-deploy: they pull and reset the
+code themselves, which would fight with Hostinger's own pulls.
 
 Uptime: point a free monitor (UptimeRobot or Better Stack) at `https://portal.codecanvastt.com/login`.
