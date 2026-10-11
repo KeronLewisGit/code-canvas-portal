@@ -249,6 +249,36 @@ class Notifier
         }, $mail);
     }
 
+    /**
+     * The welcome for clients moved over from the old system: what the portal is, what they can do there in plain
+     * language, how it works, and a link to choose their password. Sent immediately, like other login emails.
+     */
+    public function migrationWelcome(User $user, string $setPasswordUrl): bool
+    {
+        $short = config('company.short');
+        $card = WiPay::enabled();
+        $mail = new PortalMail('Welcome to the new '.$short.' client portal', [
+            'We are moving our client records to a new online portal, and you now have your own account. From today, your quotations, contracts, invoices and payments with '.$short.' are all in one place, ready whenever you need them, on your phone or computer.',
+            'Here is what you can do there:',
+            '• Quotations: read our quotes and accept or decline them with one click.',
+            '• Contracts: read your agreement in full and sign it online with your finger, mouse or trackpad. No printing or scanning.',
+            '• Invoices: see what you owe, when it is due and what you have already paid, and download a copy any time.',
+            $card
+                ? '• Payments: pay your invoices online by card (Visa or Mastercard), or let us know about a bank transfer, cheque or cash payment and upload your proof, all from the portal.'
+                : '• Payments: let us know about a bank transfer, cheque or cash payment and upload your proof, all from the portal.',
+            '• Receipts and statements: you get a receipt by email every time we confirm a payment, and you can view or print all your receipts and a full statement of your account whenever you like.',
+            'How it works: whenever we send you something, you get an email with a link straight to it. The portal home page always shows what needs your attention, like a quote to answer, a contract to sign or an invoice to pay. The first time you sign in, we will show you around.',
+            'To get started, choose your password with the button below. Your sign-in email is '.$user->email.'. The link works for 7 days; after that, use "Forgot password?" on the sign-in page.',
+            'We are moving your existing records over from our old system, so you may see them appear over the coming days. If anything looks wrong, or you have any questions, just reply to this email.',
+        ], 'Set your password', $setPasswordUrl);
+
+        return $this->deliver(function () use ($user, $mail) {
+            $user->notifyNow($mail);
+
+            return true;
+        }, $mail);
+    }
+
     /** True when the message was handed to the mailer; false when the client has nobody to email or sending failed. */
     private function client(Client $client, PortalMail $mail): bool
     {
