@@ -1,14 +1,14 @@
 <x-layout :title="$invoice->exists ? 'Edit invoice' : 'New invoice'">
     <x-page :title="$invoice->exists ? $invoice->reference : 'New invoice'" eyebrow="Invoice" :back="[$invoice->exists ? route('admin.invoices.show', $invoice) : route('admin.invoices.index'), $invoice->exists ? 'Back to invoice' : 'Invoices']" />
-    <form method="post" action="{{ $invoice->exists ? route('admin.invoices.update', $invoice) : route('admin.invoices.store') }}" class="space-y-6">
+    <form method="post" action="{{ $invoice->exists ? route('admin.invoices.update', $invoice) : route('admin.invoices.store') }}" class="space-y-6" x-data="{ client: @js((string) old('client_id', $invoice->client_id)) }">
         @csrf @if ($invoice->exists) @method('patch') @endif
         <input type="hidden" name="kind" value="{{ old('kind', $invoice->kind ?? 'standard') }}">
         <div class="card grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             <x-field label="Client" name="client_id" required class="sm:col-span-2">
-                <select id="client_id" name="client_id" required class="input"><option value="">Choose a client</option>@foreach ($clients as $c)<option value="{{ $c->id }}" @selected((int) old('client_id', $invoice->client_id) === $c->id)>{{ $c->company }}</option>@endforeach</select>
+                <select id="client_id" name="client_id" required class="input" x-model="client"><option value="">Choose a client</option>@foreach ($clients as $c)<option value="{{ $c->id }}" @selected((int) old('client_id', $invoice->client_id) === $c->id)>{{ $c->company }}</option>@endforeach</select>
             </x-field>
             <x-field label="Contract" name="contract_id" class="sm:col-span-2" hint="Payments against this invoice count toward the contract.">
-                <select id="contract_id" name="contract_id" class="input"><option value="">None</option>@foreach ($contracts as $c)<option value="{{ $c->id }}" @selected((int) old('contract_id', $invoice->contract_id) === $c->id)>{{ $c->reference }} · {{ $c->client->company }} · {{ $c->title }}</option>@endforeach</select>
+                <select id="contract_id" name="contract_id" class="input"><option value="">None</option>@foreach ($contracts as $c)<option value="{{ $c->id }}" :hidden="client && client !== '{{ $c->client_id }}'" :disabled="client && client !== '{{ $c->client_id }}'" @selected((int) old('contract_id', $invoice->contract_id) === $c->id)>{{ $c->reference }} · {{ $c->title }}</option>@endforeach</select>
             </x-field>
             <x-field label="Title" name="title" required class="sm:col-span-2 lg:col-span-3"><input id="title" name="title" value="{{ old('title', $invoice->title) }}" required class="input" placeholder="e.g. Deposit: booking website"></x-field>
             <x-field label="Issue date" name="issue_date" required><input id="issue_date" name="issue_date" type="date" value="{{ old('issue_date', $invoice->issue_date?->format('Y-m-d')) }}" required class="input"></x-field>

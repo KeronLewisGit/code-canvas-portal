@@ -16,14 +16,15 @@ mkdir -p "$STAGE"
 git ls-files -z | tar --null -T - -cf - | tar -xf - -C "$STAGE"
 
 # 2. Drop development-only files.
-(cd "$STAGE" && rm -rf tests docs scripts resources/css resources/js \
+(cd "$STAGE" && rm -rf tests docs scripts/build-release.sh resources/css resources/js \
     phpunit.xml phpstan.neon .editorconfig .gitattributes .npmrc \
     package.json package-lock.json vite.config.js .env.example README.md)
 
 # 3. Production vendor/ (also regenerates bootstrap/cache/packages.php without dev packages).
 composer install --working-dir="$STAGE" --no-dev --optimize-autoloader --no-interaction --quiet
 
-# 4. Production .env with a fresh APP_KEY. DB_PASSWORD and MAIL_PASSWORD stay blank on purpose.
+# 4. Production .env with a fresh APP_KEY. FIRST INSTALL ONLY: never upload this .env over a live site,
+#    a new APP_KEY signs everyone out and breaks anything already encrypted. DB_PASSWORD and MAIL_PASSWORD stay blank on purpose.
 cp "$STAGE/.env.hostinger.example" "$STAGE/.env"
 php "$STAGE/artisan" key:generate --force --no-interaction --quiet
 

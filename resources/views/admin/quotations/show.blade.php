@@ -4,7 +4,7 @@
             <a href="{{ route('documents.quotation', $quotation) }}" target="_blank" class="btn btn-light">View PDF</a>
             @unless ($quotation->status === 'accepted')<a href="{{ route('admin.quotations.edit', $quotation) }}" class="btn btn-light">Edit</a>@endunless
             @if ($quotation->status === 'draft')<form method="post" action="{{ route('admin.quotations.status', $quotation) }}" data-confirm="Email this quotation to the client now? They will be able to review, accept or decline it.">@csrf @method('patch')<input type="hidden" name="status" value="sent"><button class="btn btn-primary">Send to client</button></form>@endif
-            @if ($quotation->canBeAnswered())<form method="post" action="{{ route('admin.quotations.remind', $quotation) }}">@csrf<button class="btn btn-light">Send reminder</button></form>@endif
+            @if ($quotation->canBeAnswered())<form method="post" action="{{ route('admin.quotations.remind', $quotation) }}" data-confirm="Email {{ $quotation->client->company }} a reminder about this quotation?{{ $quotation->reminded_at ? ' The last one went '.$quotation->reminded_at->diffForHumans().'.' : '' }}">@csrf<button class="btn btn-light">Send reminder</button></form>@endif
             @if ($quotation->status === 'accepted' && ! $quotation->contract_id)<form method="post" action="{{ route('admin.quotations.contract', $quotation) }}">@csrf<button class="btn btn-primary">Start contract</button></form>@endif
             @if ($quotation->status === 'accepted' && ! $quotation->contract_id)<form method="post" action="{{ route('admin.quotations.invoice', $quotation) }}">@csrf<button class="btn btn-light">Create invoice</button></form>@endif
         </x-slot:actions>

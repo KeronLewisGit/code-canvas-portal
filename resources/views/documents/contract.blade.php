@@ -15,7 +15,7 @@
         <dl class="mt-6 grid grid-cols-3 gap-4 rounded-xl bg-paper p-4 text-sm avoid-break">
             <div><dt class="eyebrow">Start date</dt><dd class="font-semibold">{{ $contract->start_date->format('j F Y') }}</dd></div>
             <div><dt class="eyebrow">End date</dt><dd class="font-semibold">{{ $contract->end_date?->format('j F Y') ?? 'Until the work is delivered' }}</dd></div>
-            <div><dt class="eyebrow">{{ $contract->isRecurring() ? 'Fee' : 'Contract value' }}</dt><dd class="font-semibold">{{ $contract->amountLabel() }} {{ $contract->currency }}</dd>@if ($contract->isRecurring())<dd class="text-xs text-muted">Billed {{ strtolower($contract->cycleName()) }}{{ $contract->notice_period_days ? ' · '.$contract->notice_period_days.' days notice' : '' }}</dd>@endif<dd class="text-xs text-muted">Invoices payable within {{ $contract->payment_terms_days }} days · v{{ $contract->version }}</dd></div>
+            <div><dt class="eyebrow">{{ $contract->isRecurring() ? 'Fee' : 'Contract value' }}</dt><dd class="font-semibold">{{ $contract->amountLabel() }}</dd>@if ($contract->isRecurring())<dd class="text-xs text-muted">Billed {{ strtolower($contract->cycleName()) }}{{ $contract->notice_period_days ? ' · '.$contract->notice_period_days.' days notice' : '' }}</dd>@endif<dd class="text-xs text-muted">Invoices payable within {{ $contract->payment_terms_days }} days · v{{ $contract->version }}</dd></div>
         </dl>
 
         <h2 class="mt-8 text-lg">1. Scope of work</h2>

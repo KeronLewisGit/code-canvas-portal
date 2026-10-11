@@ -34,7 +34,8 @@ class DashboardController extends Controller
             // Nothing issued yet (drafts are invisible to clients): show a welcome instead of empty totals.
             'brandNew' => $contracts->isEmpty() && $openQuotes->isEmpty() && ! $client->quotations()->where('status', '!=', 'draft')->exists() && ! $client->invoices()->where('status', '!=', 'draft')->exists() && ! $client->payments()->exists(),
             'contracts' => $contracts,
-            'outstanding' => $client->outstanding(),
+            'dueNow' => $client->dueNow(),
+            'remaining' => $client->remainingOnContracts(),
             'pendingPayments' => $client->payments()->pending()->get(),
             'attention' => $attention,
             'recentInvoices' => $client->invoices()->where('status', '!=', 'draft')->take(5)->get(),

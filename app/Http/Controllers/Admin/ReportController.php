@@ -39,10 +39,19 @@ class ReportController extends Controller
             } else {
                 fputcsv($out, array_keys($rows->first()));
                 foreach ($rows as $row) {
-                    fputcsv($out, array_map(fn ($v) => is_bool($v) ? ($v ? 'yes' : 'no') : (is_float($v) ? number_format($v, 2, '.', '') : $v), $row));
+                    fputcsv($out, array_map(fn ($v) => is_bool($v) ? ($v ? 'yes' : 'no') : (is_float($v) ? number_format($v, 2, '.', '') : self::safeCell($v)), $row));
                 }
             }
             fclose($out);
         }, $filename, ['Content-Type' => 'text/csv']);
+    }
+
+    /**
+     * Text that a spreadsheet would read as a formula (=, +, -, @, tab, CR) is prefixed with an apostrophe, so a
+     * client-typed payment reference can never run as a formula when the CSV is opened in Excel.
+     */
+    private static function safeCell(mixed $value): mixed
+    {
+        return is_string($value) && $value !== '' && in_array($value[0], ['=', '+', '-', '@', "\t", "\r"], true) ? "'".$value : $value;
     }
 }

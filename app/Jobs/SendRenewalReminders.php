@@ -22,11 +22,12 @@ class SendRenewalReminders implements ShouldQueue
             return;
         }
         $count = $ending->count();
-        Notification::send(User::where('role', 'admin')->get(), new PortalMail(
+        // Failures are reported (logged) rather than thrown, so the scheduler keeps running the other jobs.
+        rescue(fn () => Notification::send(User::where('role', 'admin')->get(), new PortalMail(
             $count.' contract'.($count === 1 ? '' : 's').' ending soon',
             ['These contracts end within '.$days.' days and have no renewal yet:', ...$ending->map(fn (Contract $c) => $c->reference.' · '.$c->client->company.' · '.$c->title.' · ends '.$c->end_date->format('j M Y'))->all()],
             'Open the revenue report',
             route('admin.reports.revenue'),
-        ));
+        )));
     }
 }

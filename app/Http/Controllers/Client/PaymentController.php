@@ -13,6 +13,8 @@ use Illuminate\View\View;
 
 class PaymentController extends Controller
 {
+    private const MAX_PENDING = 5;
+
     public function index(Request $request): View|RedirectResponse
     {
         $client = $request->user()->client;
@@ -50,11 +52,15 @@ class PaymentController extends Controller
         if ($contracts->isEmpty() && $invoices->isEmpty()) {
             return $this->nothingToPay();
         }
+        // A handful of payments waiting for verification is plenty; more usually means duplicates.
+        if ($client->payments()->pending()->count() >= self::MAX_PENDING) {
+            throw ValidationException::withMessages(['amount' => 'You already have '.self::MAX_PENDING.' payments waiting for us to verify. We will check them shortly; contact us if something is wrong.']);
+        }
         $data = $request->validate([
             'contract_id' => ['nullable', Rule::in($contracts->modelKeys())],
             'invoice_id' => ['nullable', Rule::in($invoices->modelKeys())],
             'amount' => ['required', 'numeric', 'min:0.01', 'max:99999999'],
-            'method' => ['required', 'in:'.implode(',', array_keys(config('company.payment_methods')))],
+            'method' => ['required', 'in:'.implode(',', array_keys(Payment::clientMethods()))],
             'paid_on' => ['required', 'date', 'before_or_equal:today'],
             'reference' => ['nullable', 'string', 'max:160'],
             'note' => ['nullable', 'string', 'max:2000'],

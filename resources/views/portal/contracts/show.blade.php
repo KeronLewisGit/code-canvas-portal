@@ -7,6 +7,9 @@
     </x-page>
     @if ($contract->awaitingSignature())<div class="callout mb-6"><p><span class="font-semibold">This contract is waiting for your signature.</span> Read it, then sign in the portal in under a minute.</p><a href="{{ route('portal.contracts.sign', $contract) }}" class="btn btn-primary">Sign now</a></div>@endif
     @php($deposit = \App\Services\ContractInvoicing::depositStatus($contract))
+    @if (($credit = $contract->unallocatedCredit()) > 0)
+        <p class="mb-6 rounded-xl bg-brand-50 px-4 py-3 text-sm font-semibold text-brand-900 ring-1 ring-brand-100">You have {{ money($credit, $contract->currency) }} in credit on this contract. It is applied to your next invoice automatically.</p>
+    @endif
     @if ($deposit && ! $deposit['paid'])
         <div class="callout mb-6"><p><span class="font-semibold">Deposit of {{ money($deposit['balance'], $contract->currency) }} outstanding.</span> Work usually starts once it is received.</p>@if ($deposit['invoice']->acceptsPayments())<a href="{{ route('portal.payments.create', ['invoice' => $deposit['invoice']->id]) }}" class="btn btn-primary">Pay the deposit</a>@endif</div>
     @elseif ($deposit)
@@ -14,7 +17,7 @@
     @endif
     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <x-stat :label="$contract->isRecurring() ? 'Price per '.$contract->cycle()['per'] : 'Contract value'" :value="money($contract->amount, $contract->currency)" :sub="$contract->isRecurring() ? $contract->cycleName().' · '.money($contract->dueToDate(), $contract->currency).' due to date' : $contract->statusName()" />
-        <x-stat label="Paid" :value="money($contract->paidAmount(), $contract->currency)" :sub="ucfirst($contract->paymentState())" />
+        <x-stat label="Paid" :value="money($contract->paidAmount(), $contract->currency)" :sub="status_label($contract->paymentState())" />
         <x-stat label="Balance" :value="money($contract->balance(), $contract->currency)" :sub="$contract->pendingAmount() > 0 ? money($contract->pendingAmount(), $contract->currency).' being verified' : 'Nothing pending'" />
         <x-stat :label="$contract->nextDueDate() ? 'Next payment due' : 'Dates'" :value="$contract->nextDueDate()?->format('j M Y') ?? $contract->start_date->format('j M Y')" :sub="$contract->nextDueDate() ? 'Started '.$contract->start_date->format('j M Y').($contract->end_date ? ', ends '.$contract->end_date->format('j M Y') : '') : ($contract->end_date ? 'to '.$contract->end_date->format('j M Y') : 'Open-ended')" />
     </div>

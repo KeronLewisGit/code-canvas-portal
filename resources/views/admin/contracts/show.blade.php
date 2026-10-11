@@ -7,9 +7,15 @@
             @if ($deposit && ($finance['remaining_value'] ?? 0) > 0)
                 <a href="{{ route('admin.invoices.create', ['contract' => $contract->id, 'kind' => 'balance']) }}" class="btn btn-light">Create balance invoice</a>
             @else
-                <a href="{{ route('admin.invoices.create', ['contract' => $contract->id]) }}" class="btn btn-light">Invoice this</a>
+                <a href="{{ route('admin.invoices.create', ['contract' => $contract->id]) }}" class="btn btn-light">Create invoice</a>
             @endif
             <a href="{{ route('admin.payments.create', ['contract' => $contract->id]) }}" class="btn btn-light">Record a payment</a>
+            {{-- The next step in the contract's life is the one main button. --}}
+            @if (\App\Services\ContractLifecycle::canSendForSignature($contract) && ! $contract->sent_for_signature_at && $contract->status !== 'active')
+                <form method="post" action="{{ route('admin.contracts.signature', $contract) }}" data-confirm="Email this contract to the client to review and sign? It becomes visible to them now.">@csrf @method('patch')<input type="hidden" name="action" value="request"><button class="btn btn-primary">Send for signature</button></form>
+            @elseif ($contract->isSigned() && $contract->status === 'approved')
+                <form method="post" action="{{ route('admin.contracts.lifecycle', $contract) }}" data-confirm="Activate this contract? The client will be emailed, and its first invoice is issued.">@csrf @method('patch')<input type="hidden" name="action" value="activate"><button class="btn btn-primary">Activate</button></form>
+            @endif
         </x-slot:actions>
     </x-page>
 
@@ -23,7 +29,7 @@
     </div>
     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <x-stat :label="$contract->isRecurring() ? 'Price per '.$contract->cycle()['per'] : 'Contract value'" :value="money($contract->amount, $contract->currency)" :sub="$contract->isRecurring() ? $contract->cycleName().' · '.money($contract->dueToDate(), $contract->currency).' due to date' : $contract->statusName()" />
-        <x-stat label="Verified paid" :value="money($contract->paidAmount(), $contract->currency)" :sub="ucfirst($contract->paymentState())" />
+        <x-stat label="Verified paid" :value="money($contract->paidAmount(), $contract->currency)" :sub="status_label($contract->paymentState())" />
         <x-stat label="Balance" :value="money($contract->balance(), $contract->currency)" :sub="$contract->pendingAmount() > 0 ? money($contract->pendingAmount(), $contract->currency).' awaiting verification' : 'Nothing pending'" />
         <x-stat :label="$contract->nextDueDate() ? 'Next payment due' : 'Dates'" :value="$contract->nextDueDate()?->format('j M Y') ?? $contract->start_date->format('j M Y')" :sub="$contract->nextDueDate() ? 'Started '.$contract->start_date->format('j M Y').($contract->end_date ? ', ends '.$contract->end_date->format('j M Y') : '') : ($contract->end_date ? 'to '.$contract->end_date->format('j M Y') : 'Open-ended')" />
     </div>
@@ -82,6 +88,10 @@
             </section>
             <section class="card text-sm">
                 <h2 class="text-lg font-bold">Financials</h2>
+                @if (($credit = $contract->unallocatedCredit()) > 0)<p class="mt-3 rounded-xl bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-900">Credit on account: {{ money($credit, $contract->currency) }} <span class="font-normal">(applied to the next invoice)</span></p>@endif
+                @if (! $contract->isRecurring() && in_array($contract->status, ['active', 'completed']) && ($finance['remaining_value'] ?? 0) > 0 && $contract->invoices->where('status', '!=', 'cancelled')->isNotEmpty())
+                    <div class="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900"><p class="font-semibold">{{ money($finance['remaining_value'], $contract->currency) }} not invoiced yet.</p><a href="{{ route('admin.invoices.create', ['contract' => $contract->id, 'kind' => 'balance']) }}" class="btn btn-light btn-sm mt-2">Create balance invoice</a></div>
+                @endif
                 @if ($deposit)<p class="mt-3 rounded-xl px-3 py-2 text-sm font-semibold {{ $deposit['paid'] ? 'bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900' }}">{{ $deposit['paid'] ? 'Deposit received' : 'Deposit outstanding: '.money($deposit['balance'], $contract->currency) }} <a href="{{ route('admin.invoices.show', $deposit['invoice']) }}" class="font-normal underline">{{ $deposit['invoice']->reference }}</a></p>@endif
                 <dl class="mt-4 grid grid-cols-2 gap-x-4 gap-y-2">
                     <div><dt class="eyebrow">Contracted</dt><dd class="font-semibold tabular-nums">{{ $finance['contracted_value'] === null ? 'Open-ended' : money($finance['contracted_value'], $contract->currency) }}</dd></div>
@@ -112,7 +122,7 @@
                     <p class="mt-2"><x-badge status="verified">Signed copy uploaded</x-badge></p><p class="mt-2 text-muted">Signed {{ $contract->signed_at->format('j M Y') }}.</p>
                 @elseif ($contract->awaitingSignature())
                     <p class="mt-2"><x-badge status="pending">Awaiting client</x-badge></p><p class="mt-2 text-muted">Sent {{ $contract->sent_for_signature_at->diffForHumans() }}. The client sees a "Sign now" banner in their portal.</p>
-                    <div class="mt-4 flex flex-wrap gap-2"><form method="post" action="{{ route('admin.contracts.remind', $contract) }}">@csrf<button class="btn btn-primary btn-sm">Send reminder</button></form><form method="post" action="{{ route('admin.contracts.signature', $contract) }}">@csrf @method('patch')<input type="hidden" name="action" value="withdraw"><button class="btn btn-light btn-sm" data-confirm="Withdraw the signature request? The client will no longer be able to sign until you send it again.">Withdraw request</button></form></div>
+                    <div class="mt-4 flex flex-wrap gap-2"><form method="post" action="{{ route('admin.contracts.remind', $contract) }}" data-confirm="Email {{ $contract->client->company }} a reminder to sign?{{ $contract->reminded_at ? ' The last one went '.$contract->reminded_at->diffForHumans().'.' : '' }}">@csrf<button class="btn btn-primary btn-sm">Send reminder</button></form><form method="post" action="{{ route('admin.contracts.signature', $contract) }}">@csrf @method('patch')<input type="hidden" name="action" value="withdraw"><button class="btn btn-light btn-sm" data-confirm="Withdraw the signature request? The client will no longer be able to sign until you send it again.">Withdraw request</button></form></div>
                     @if ($contract->reminded_at)<p class="mt-2 text-xs text-muted">Last reminder {{ $contract->reminded_at->diffForHumans() }}.</p>@endif
                 @else
                     <p class="mt-2 text-muted">Not sent for signature. The client will be able to read the contract PDF and sign it electronically in their portal.</p>

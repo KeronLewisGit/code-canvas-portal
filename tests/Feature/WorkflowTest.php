@@ -31,13 +31,14 @@ class WorkflowTest extends TestCase
         $this->actingAs($admin)->post(route('admin.clients.store'), ['company' => 'Acme', 'contact_name' => 'Ann', 'email' => 'ann@acme.test', 'active' => '1', 'create_login' => '1']);
         $client = Client::sole();
         $user = $client->users()->sole();
-        $password = substr(collect(Notification::sent($user, PortalMail::class)->last()->lines)->first(fn ($l) => str_starts_with($l, 'Password: ')), 10);
-        Notification::assertSentTo($user, PortalMail::class, fn (PortalMail $m) => str_contains($m->subject, 'Welcome'));
+        $url = Notification::sent($user, PortalMail::class)->last()->actionUrl;
         auth()->logout();
 
-        // 2. First login shows the welcome; with nothing assigned there is no payment option.
-        $this->post(route('login.attempt'), ['email' => 'ann@acme.test', 'password' => $password])->assertRedirect(route('portal.welcome'));
-        $this->post(route('portal.welcome.complete'), ['password' => 'ann-own-password', 'password_confirmation' => 'ann-own-password']);
+        // 2. The client sets a password from the email link, signs in, and sees the welcome; nothing to pay yet.
+        $this->post(route('password.invite.update'), ['token' => basename((string) parse_url($url, PHP_URL_PATH)), 'email' => 'ann@acme.test', 'password' => 'ann-own-password', 'password_confirmation' => 'ann-own-password'])->assertRedirect(route('login'));
+        $this->post(route('login.attempt'), ['email' => 'ann@acme.test', 'password' => 'ann-own-password'])->assertRedirect(route('portal.welcome'));
+        $this->get(route('portal.welcome'))->assertDontSee('Choose your own password');
+        $this->post(route('portal.welcome.complete'));
         $this->get(route('portal.dashboard'))->assertSee('Your portal is ready')->assertDontSee('Submit a payment');
         $this->get(route('portal.payments.create'))->assertRedirect(route('portal.dashboard'));
 

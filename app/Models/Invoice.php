@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\DateRules;
 use App\Models\Concerns\HasLineItems;
 use App\Models\Concerns\HasReference;
+use App\Support\LedgerCache;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -16,6 +17,8 @@ use Illuminate\Support\Carbon;
  * @property string $reference
  * @property int $client_id
  * @property int|null $contract_id
+ * @property string $kind standard | deposit | balance | cycle
+ * @property Carbon|null $period_start first day of the billing period (recurring contracts)
  * @property int|null $quotation_id
  * @property string $title
  * @property Carbon $issue_date
@@ -32,14 +35,20 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $reminded_at
  * @property-read Client $client
  */
-#[Fillable(['reference', 'client_id', 'contract_id', 'quotation_id', 'title', 'issue_date', 'due_date', 'currency', 'tax_rate', 'status', 'notes', 'sent_at', 'paid_at', 'reminded_at', 'kind'])]
+#[Fillable(['reference', 'client_id', 'contract_id', 'quotation_id', 'title', 'issue_date', 'due_date', 'currency', 'tax_rate', 'status', 'notes', 'sent_at', 'paid_at', 'reminded_at', 'kind', 'period_start'])]
 class Invoice extends Model
 {
     use DateRules, HasLineItems, HasReference;
 
+    protected static function booted(): void
+    {
+        static::saved(fn () => LedgerCache::flush());
+        static::deleted(fn () => LedgerCache::flush());
+    }
+
     protected function casts(): array
     {
-        return ['issue_date' => 'date', 'due_date' => 'date', 'sent_at' => 'datetime', 'paid_at' => 'datetime', 'reminded_at' => 'datetime', 'subtotal' => 'decimal:2', 'tax_rate' => 'decimal:2', 'tax_amount' => 'decimal:2', 'total' => 'decimal:2'];
+        return ['period_start' => 'date', 'issue_date' => 'date', 'due_date' => 'date', 'sent_at' => 'datetime', 'paid_at' => 'datetime', 'reminded_at' => 'datetime', 'subtotal' => 'decimal:2', 'tax_rate' => 'decimal:2', 'tax_amount' => 'decimal:2', 'total' => 'decimal:2'];
     }
 
     /** @return BelongsTo<Client, $this> */
@@ -92,9 +101,18 @@ class Invoice extends Model
         return $days <= 0 ? 'Due on receipt' : 'Net '.$days;
     }
 
+    /** Verified payments that name this invoice, plus contract-level payments applied to it (see Contract::creditAllocation). */
     public function paidAmount(): float
     {
-        return (float) $this->payments()->where('status', 'verified')->sum('amount');
+        $applied = $this->contract_id && $this->contract ? ($this->contract->creditAllocation()[$this->id] ?? 0) : 0;
+
+        return round($this->directPaidAmount() + $applied, 2);
+    }
+
+    /** Verified payments made against this invoice specifically. */
+    public function directPaidAmount(): float
+    {
+        return LedgerCache::remember('invoice-paid:'.$this->id, fn () => (float) $this->payments()->where('status', 'verified')->sum('amount'));
     }
 
     public function balance(): float
@@ -114,10 +132,10 @@ class Invoice extends Model
         if (in_array($this->status, ['draft', 'cancelled'])) {
             return;
         }
-        if ($this->status === 'paid' && $this->payments()->doesntExist()) {
-            return; // settled outside the portal and marked paid by hand
-        }
         $paid = $this->paidAmount();
+        if ($this->status === 'paid' && $paid <= 0 && $this->payments()->doesntExist()) {
+            return; // older invoices marked paid by hand before that recorded a payment
+        }
         if ($paid + 0.005 >= (float) $this->total && $this->total > 0) {
             $this->forceFill(['status' => 'paid', 'paid_at' => $this->paid_at ?? now()])->save();
         } elseif ($paid > 0) {

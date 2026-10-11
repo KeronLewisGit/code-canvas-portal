@@ -7,9 +7,9 @@
     </x-page>
 
     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <x-stat label="Payments to verify" :value="$stats['pending_payments']" :sub="money($stats['pending_amount']).' waiting for you'" />
-        <x-stat label="Owed to you" :value="money($stats['outstanding'])" sub="Due to date, minus verified payments" />
-        <x-stat label="Active contracts" :value="$stats['active_contracts']" :sub="money($stats['monthly_recurring']).' per month recurring'" />
+        <x-stat label="Payments to verify" :value="$stats['pending_payments']" :sub="money_by_currency($stats['pending_amount']).' waiting for you'" />
+        <x-stat label="Due to you now" :value="money_by_currency($stats['due_now'])" :sub="array_sum($stats['not_invoiced']) > 0 ? money_by_currency($stats['not_invoiced']).' more on live contracts, not invoiced yet' : 'On sent invoices'" />
+        <x-stat label="Active contracts" :value="$stats['active_contracts']" :sub="money_by_currency($stats['monthly_recurring']).' per month recurring'" />
         <x-stat label="Open quotations" :value="$stats['open_quotes']" sub="Waiting on a client answer" />
     </div>
 
@@ -17,7 +17,7 @@
         <section class="card overflow-x-auto">
             <div class="flex items-center justify-between"><h2 class="text-lg font-bold">Payments awaiting verification</h2><a href="{{ route('admin.payments.index') }}" class="text-sm font-semibold text-brand-700">All payments</a></div>
             @if ($pending->isEmpty())<p class="mt-4 text-sm text-muted">Nothing waiting. Client submissions appear here.</p>@else
-            <table class="table mt-4"><tbody>
+            <table class="table mt-4"><thead class="sr-only"><tr><th>Payment</th><th>Amount</th><th>Action</th></tr></thead><tbody>
                 @foreach ($pending as $p)<tr><td><a href="{{ route('admin.payments.show', $p) }}" class="font-semibold hover:text-brand-700">{{ $p->client->company }}</a><span class="block text-xs text-muted">{{ $p->methodName() }} · {{ $p->paid_on->format('j M') }} · {{ $p->invoice?->reference ?? $p->contract?->reference }}</span></td><td class="num font-semibold">{{ money($p->amount, $p->currency) }}</td><td class="num"><a href="{{ route('admin.payments.show', $p) }}" class="btn btn-light btn-sm">Review payment</a></td></tr>@endforeach
             </tbody></table>@endif
         </section>
@@ -33,13 +33,13 @@
         </section>
         <section class="card overflow-x-auto">
             <div class="flex items-center justify-between"><h2 class="text-lg font-bold">Recent contracts</h2><a href="{{ route('admin.contracts.index') }}" class="text-sm font-semibold text-brand-700">All contracts</a></div>
-            <table class="table mt-4"><tbody>
+            <table class="table mt-4"><thead class="sr-only"><tr><th>Contract</th><th>Status</th><th>Payment</th><th>Amount</th></tr></thead><tbody>
                 @forelse ($recentContracts as $c)<tr><td><a href="{{ route('admin.contracts.show', $c) }}" class="font-semibold hover:text-brand-700">{{ $c->title }}</a><span class="block text-xs text-muted">{{ $c->reference }} · {{ $c->client->company }}</span></td><td><x-badge :status="$c->status" /></td><td><x-badge :status="$c->paymentState()" /></td><td class="num font-semibold">{{ $c->amountLabel() }}</td></tr>@empty<tr><td class="text-muted">No contracts yet.</td></tr>@endforelse
             </tbody></table>
         </section>
         <section class="card overflow-x-auto">
             <h2 class="text-lg font-bold">Recently verified</h2>
-            <table class="table mt-4"><tbody>
+            <table class="table mt-4"><thead class="sr-only"><tr><th>Payment</th><th>Amount</th></tr></thead><tbody>
                 @forelse ($recentPayments as $p)<tr><td><a href="{{ route('admin.payments.show', $p) }}" class="font-semibold hover:text-brand-700">{{ $p->client->company }}</a><span class="block text-xs text-muted">{{ $p->methodName() }} · {{ $p->verified_at?->format('j M') }}</span></td><td class="num font-semibold">{{ money($p->amount, $p->currency) }}</td></tr>@empty<tr><td class="text-muted">No verified payments yet.</td></tr>@endforelse
             </tbody></table>
         </section>

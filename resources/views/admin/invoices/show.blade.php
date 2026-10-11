@@ -2,9 +2,11 @@
     <x-page :title="$invoice->title" :eyebrow="($invoice->reference).' · '.($invoice->client->company)" :back="[route('admin.invoices.index'), 'Invoices']">
         <x-slot:actions>
             <a href="{{ route('documents.invoice', $invoice) }}" target="_blank" class="btn btn-light">View PDF</a>
-            <a href="{{ route('admin.invoices.edit', $invoice) }}" class="btn btn-light">Edit</a>
+            {{-- Settled and cancelled invoices are the record; a sent one can be corrected, but the client has already seen it. --}}
+            @if ($invoice->status === 'draft')<a href="{{ route('admin.invoices.edit', $invoice) }}" class="btn btn-light">Edit</a>
+            @elseif (in_array($invoice->status, ['sent', 'partial']))<a href="{{ route('admin.invoices.edit', $invoice) }}" class="btn btn-light" onclick="return confirm('The client has already received this invoice. Edit it anyway?')">Edit</a>@endif
             @if ($invoice->status === 'draft')<form method="post" action="{{ route('admin.invoices.status', $invoice) }}" data-confirm="Email this invoice to the client now? They will be able to view and pay it.">@csrf @method('patch')<input type="hidden" name="status" value="sent"><button class="btn btn-primary">Send to client</button></form>@endif
-            @if (in_array($invoice->status, ['sent', 'partial']) && $invoice->balance() > 0)<form method="post" action="{{ route('admin.invoices.remind', $invoice) }}">@csrf<button class="btn btn-light">Send reminder</button></form>@endif
+            @if (in_array($invoice->status, ['sent', 'partial']) && $invoice->balance() > 0)<form method="post" action="{{ route('admin.invoices.remind', $invoice) }}" data-confirm="Email {{ $invoice->client->company }} a payment reminder?{{ $invoice->reminded_at ? ' The last one went '.$invoice->reminded_at->diffForHumans().'.' : '' }}">@csrf<button class="btn btn-light">Send reminder</button></form>@endif
             @if (! in_array($invoice->status, ['paid', 'cancelled', 'draft']))<a href="{{ route('admin.payments.create', ['invoice' => $invoice->id]) }}" class="btn btn-primary">Record a payment</a>@endif
         </x-slot:actions>
     </x-page>

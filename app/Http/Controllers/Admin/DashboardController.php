@@ -20,11 +20,12 @@ class DashboardController extends Controller
             'stats' => [
                 'clients' => Client::where('active', true)->count(),
                 'active_contracts' => $active->count(),
-                'contract_value' => $active->where('billing_cycle', 'one_time')->sum('amount'),
-                'monthly_recurring' => $active->sum(fn (Contract $c) => $c->monthlyEquivalent()),
-                'outstanding' => $active->sum(fn (Contract $c) => $c->balance()),
+                'monthly_recurring' => sum_by_currency($active, fn (Contract $c) => $c->monthlyEquivalent()),
+                // Owed to you, split like the client sees it: billed and unpaid, and contracted but not invoiced yet.
+                'due_now' => sum_by_currency(Invoice::whereIn('status', ['sent', 'partial'])->get(), fn (Invoice $i) => $i->balance()),
+                'not_invoiced' => sum_by_currency($active, fn (Contract $c) => Contract::notYetInvoiced($c)),
                 'pending_payments' => Payment::pending()->count(),
-                'pending_amount' => (float) Payment::pending()->sum('amount'),
+                'pending_amount' => sum_by_currency(Payment::pending()->get(), fn (Payment $p) => $p->amount),
                 'open_quotes' => Quotation::where('status', 'sent')->count(),
             ],
             'pending' => Payment::with('client', 'contract', 'invoice')->pending()->oldest()->get(),

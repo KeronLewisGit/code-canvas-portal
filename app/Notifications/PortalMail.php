@@ -24,12 +24,21 @@ class PortalMail extends Notification implements ShouldQueue
         $mail = (new MailMessage)->subject($this->subject.' · '.config('company.short'));
         $mail->greeting($this->greeting ?? ('Hello'.(isset($notifiable->name) ? ' '.$notifiable->name : '').','));
         foreach ($this->lines as $line) {
-            $mail->line($line);
+            $mail->line(self::plain($line));
         }
         if ($this->actionLabel && $this->actionUrl) {
             $mail->action($this->actionLabel, $this->actionUrl);
         }
 
         return $mail->salutation(config('company.name').' · '.config('company.phone').' · '.config('company.email'));
+    }
+
+    /**
+     * Lines are plain text, but the mail template renders Markdown. Escaping its control characters means text a
+     * client typed (a signature name, a payment reference) can never become a link or formatting in our emails.
+     */
+    public static function plain(string $text): string
+    {
+        return preg_replace('/([\\\\`*_\[\]#|~])/', '\\\\$1', $text);
     }
 }

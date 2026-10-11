@@ -99,6 +99,13 @@ return [
             'expire' => 60,
             'throttle' => 60,
         ],
+        // "Set your password" links in welcome emails: valid for 7 days, in their own table.
+        'invites' => [
+            'provider' => 'users',
+            'table' => 'invite_tokens',
+            'expire' => 60 * 24 * 7,
+            'throttle' => 0,
+        ],
     ],
 
     /*

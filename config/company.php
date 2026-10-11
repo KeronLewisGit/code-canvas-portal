@@ -32,7 +32,7 @@ return [
         'bank_name' => env('BANK_NAME', 'First Citizens Bank'),
         'account_name' => env('BANK_ACCOUNT_NAME', 'Code Canvas Consultants LTD'),
         'account_type' => env('BANK_ACCOUNT_TYPE', 'Chequing'),
-        'account_number' => env('BANK_ACCOUNT_NUMBER', '3106054'),
+        'account_number' => env('BANK_ACCOUNT_NUMBER', ''), // set in .env only
         'branch' => env('BANK_BRANCH', ''),
         'cheque_payable_to' => 'Code Canvas Consultants Ltd',
     ],
@@ -128,6 +128,8 @@ return [
         'bank_transfer' => ['label' => 'Bank transfer', 'proof' => true, 'hint' => 'Upload a screenshot or PDF of the transfer confirmation.'],
         'cash' => ['label' => 'Cash in hand', 'proof' => false, 'hint' => 'Tell us who you handed it to and when.'],
         'cheque' => ['label' => 'Cheque', 'proof' => false, 'hint' => 'Enter the cheque number as the reference.'],
+        // Recorded by an admin when an invoice is marked paid by hand; never offered to clients.
+        'other' => ['label' => 'Settled outside the portal', 'proof' => false, 'hint' => 'Recorded by Code Canvas.', 'admin_only' => true],
     ],
     'payment_statuses' => ['pending' => 'Awaiting verification', 'verified' => 'Verified', 'rejected' => 'Rejected'],
 

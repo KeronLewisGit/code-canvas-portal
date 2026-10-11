@@ -6,7 +6,7 @@
         </x-slot:actions>
     </x-page>
     <div class="grid gap-6 lg:grid-cols-3">
-        <div class="lg:col-span-2"><iframe src="{{ route('documents.invoice', [$invoice, 'embed' => 1]) }}" title="Invoice preview" class="h-[75vh] min-h-[28rem] w-full rounded-2xl lg:h-[1150px] ring-1 ring-line" loading="lazy"></iframe></div>
+        <div class="hidden lg:col-span-2 lg:block"><iframe src="{{ route('documents.invoice', [$invoice, 'embed' => 1]) }}" title="Invoice preview" class="h-[75vh] min-h-[28rem] w-full rounded-2xl lg:h-[1150px] ring-1 ring-line" loading="lazy"></iframe></div>
         <div class="order-first space-y-6 lg:order-none">
             <section class="card text-sm">
                 <h2 class="text-lg font-bold">Status</h2>
@@ -15,6 +15,21 @@
                 <h3 class="mt-6 font-bold">Payments</h3>
                 <ul class="mt-2 space-y-2">@forelse ($invoice->payments as $p)<li class="flex items-center justify-between gap-2"><span><a href="{{ route('portal.payments.show', $p) }}" class="font-semibold hover:text-brand-700">{{ $p->paid_on->format('j M Y') }}</a> <x-badge :status="$p->status" /></span><span class="tabular-nums">{{ money($p->amount, $p->currency) }}</span></li>@empty<li class="text-muted">None yet.</li>@endforelse</ul>
             </section>
+            @if ($invoice->acceptsPayments())
+                @php($bank = config('company.bank'))
+                <section class="card text-sm">
+                    <h2 class="text-lg font-bold">How to pay</h2>
+                    <dl class="mt-3 space-y-2">
+                        <div><dt class="eyebrow">Bank</dt><dd class="font-semibold">{{ $bank['bank_name'] }}{{ $bank['branch'] ? ', '.$bank['branch'] : '' }}</dd></div>
+                        <div><dt class="eyebrow">Account name</dt><dd class="font-semibold">{{ $bank['account_name'] }}</dd></div>
+                        <div><dt class="eyebrow">Account number</dt><dd class="font-mono font-semibold">{{ $bank['account_number'] }}</dd></div>
+                        <div><dt class="eyebrow">Reference</dt><dd class="font-semibold">{{ $invoice->reference }}</dd></div>
+                    </dl>
+                    <p class="mt-3 text-xs text-muted">Cheques payable to {{ $bank['cheque_payable_to'] }}. Once you have paid, tell us so we can confirm it.</p>
+                    <a href="{{ route('portal.payments.create', ['invoice' => $invoice->id]) }}" class="btn btn-primary mt-4 w-full">I have paid: submit the payment</a>
+                </section>
+            @endif
+            <x-doc-summary :doc="$invoice" :pdf="route('documents.invoice', $invoice)" />
         </div>
     </div>
 </x-layout>

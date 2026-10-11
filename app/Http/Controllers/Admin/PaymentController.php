@@ -22,6 +22,7 @@ class PaymentController extends Controller
         $payments = Payment::with('client', 'contract', 'invoice')
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
             ->when($request->filled('client'), fn ($q) => $q->where('client_id', $request->client))
+            ->when($request->filled('q'), fn ($q) => $q->where(fn ($w) => $w->where('reference', 'like', '%'.$request->q.'%')->orWhereHas('client', fn ($c) => $c->where('company', 'like', '%'.$request->q.'%'))))
             ->orderByRaw("case status when 'pending' then 0 else 1 end")->latest('paid_on')->latest('id')->paginate(25)->withQueryString();
 
         return view('admin.payments.index', ['payments' => $payments, 'clients' => Client::orderBy('company')->get(['id', 'company']), 'pendingCount' => Payment::pending()->count()]);
@@ -34,7 +35,11 @@ class PaymentController extends Controller
         $invoice = $request->filled('invoice') ? Invoice::with('client')->find($request->invoice) : null;
         $payment = new Payment(['paid_on' => now(), 'method' => 'bank_transfer', 'currency' => $contract?->currency ?? $invoice?->currency ?? config('company.currency.code'), 'client_id' => $contract?->client_id ?? $invoice?->client_id, 'contract_id' => $contract?->id ?? $invoice?->contract_id, 'invoice_id' => $invoice?->id, 'amount' => $invoice?->balance() ?? $contract?->balance()]);
 
-        return view('admin.payments.form', ['payment' => $payment, 'clients' => Client::orderBy('company')->get(), 'contracts' => Contract::with('client')->orderBy('reference')->get(), 'invoices' => Invoice::with('client')->whereNotIn('status', ['cancelled'])->orderBy('reference')->get()]);
+        // Only what can still take a payment (plus anything preselected), so the lists stay short as history grows.
+        $contracts = Contract::with('client')->where(fn ($q) => $q->whereIn('status', Contract::PAYABLE_STATUSES)->orWhere('id', $payment->contract_id))->orderBy('reference')->get();
+        $invoices = Invoice::with('client')->where(fn ($q) => $q->whereIn('status', ['sent', 'partial'])->orWhere('id', $payment->invoice_id))->orderBy('reference')->get();
+
+        return view('admin.payments.form', ['payment' => $payment, 'clients' => Client::orderBy('company')->get(), 'contracts' => $contracts, 'invoices' => $invoices]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -46,18 +51,21 @@ class PaymentController extends Controller
             'amount' => ['required', 'numeric', 'min:0.01', 'max:99999999'],
             'currency' => ['required', 'in:'.implode(',', array_keys(config('company.currencies')))],
             'method' => ['required', 'in:'.implode(',', array_keys(config('company.payment_methods')))],
-            'paid_on' => ['required', 'date'],
+            'paid_on' => ['required', 'date', 'before_or_equal:today'],
             'reference' => ['nullable', 'string', 'max:160'],
             'note' => ['nullable', 'string', 'max:2000'],
             'proof' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
-        ]);
+            'confirm_overpayment' => ['nullable', 'boolean'],
+        ], ['paid_on.before_or_equal' => 'The payment date cannot be in the future.']);
         $data = $this->guardOwnership($data);
+        $this->guardAmount($data, $request->boolean('confirm_overpayment'));
+        unset($data['confirm_overpayment']);
         unset($data['proof']);
         $proofPath = $request->hasFile('proof') ? $request->file('proof')->store('payments', 'local') : null;
         abort_if($proofPath === false, 500, 'The proof file could not be stored. Check the storage folder permissions.');
 
         $payment = Payment::create($data + ['status' => 'verified', 'submitted_by' => $request->user()->id, 'verified_by' => $request->user()->id, 'verified_at' => now(), 'proof_path' => $proofPath]);
-        $payment->invoice?->refreshPaymentStatus();
+        $payment->refreshDocuments();
         Audit::log($payment, 'recorded', ['amount' => (float) $payment->amount, 'method' => $payment->method]);
 
         return redirect()->route('admin.payments.show', $payment)->with('saved', 'Payment recorded and verified.');
@@ -96,15 +104,32 @@ class PaymentController extends Controller
     public function destroy(Payment $payment): RedirectResponse
     {
         abort_if($payment->status === 'verified', 403, 'Verified payments are part of the financial record. Reverse the verification first if it was recorded in error.');
-        $invoice = $payment->invoice;
         Audit::log($payment, 'deleted', ['amount' => (float) $payment->amount, 'status' => $payment->status, 'client' => $payment->client->company]);
         $payment->delete();
         if ($payment->proof_path) {
             Storage::disk('local')->delete($payment->proof_path); // after the row is gone, so a failed delete never strands a payment without its proof
         }
-        $invoice?->refreshPaymentStatus();
+        $payment->refreshDocuments();
 
         return redirect()->route('admin.payments.index')->with('saved', 'Payment deleted.');
+    }
+
+    /**
+     * Payments go against open invoices only, and recording more than is owed needs a deliberate tick: on a contract
+     * the extra stays as credit for its next invoice, but a typo of an extra zero should not slip through.
+     */
+    private function guardAmount(array $data, bool $confirmed): void
+    {
+        $invoice = ! empty($data['invoice_id']) ? Invoice::find($data['invoice_id']) : null;
+        $contract = ! empty($data['contract_id']) ? Contract::find($data['contract_id']) : null;
+        if ($invoice && ! in_array($invoice->status, ['sent', 'partial'])) {
+            throw ValidationException::withMessages(['invoice_id' => 'Invoice '.$invoice->reference.' is '.strtolower($invoice->statusName()).'. Payments can only be recorded against sent or partly paid invoices.']);
+        }
+        $target = $invoice ?? $contract;
+        $owed = $target ? $target->balance() : null;
+        if ($owed !== null && (float) $data['amount'] > $owed + 0.005 && ! $confirmed) {
+            throw ValidationException::withMessages(['amount' => 'That is more than the '.money($owed, $target->currency).' still owed on '.$target->reference.'. Tick "Record more than is owed" to record it anyway.']);
+        }
     }
 
     /**

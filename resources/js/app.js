@@ -24,10 +24,17 @@ Alpine.data('clauseList', (initial = []) => ({
 }));
 
 /** Payment form: show the proof upload only for methods that need it. */
-Alpine.data('paymentForm', (method, needsProof = {}) => ({
+Alpine.data('paymentForm', (method, needsProof = {}, invoice = '', symbol = 'TT$') => ({
     method,
     needsProof,
+    invoice,
+    symbol,
     get proofRequired() { return !!this.needsProof[this.method]; },
+    /** Picking an invoice fills in its balance and currency; the contract choice is then not needed. */
+    pickInvoice(option) {
+        if (option?.dataset.balance) this.$refs.amount.value = option.dataset.balance;
+        if (option?.dataset.symbol) this.symbol = option.dataset.symbol;
+    },
 }));
 
 /** Contract signing: draws on a canvas and posts the PNG as a data URL. */

@@ -3,10 +3,10 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
 
 /**
  * @property int $id
@@ -67,13 +67,15 @@ class Client extends Model
     }
 
     /** Contracts the client can pay against right now. The single rule behind every payment option in the portal. */
-    public function payableContracts(): Collection
+    /** @return EloquentCollection<int, Contract> */
+    public function payableContracts(): EloquentCollection
     {
         return $this->contracts()->whereIn('status', Contract::PAYABLE_STATUSES)->get()->filter->acceptsPayments()->values();
     }
 
     /** Invoices the client can pay against right now. */
-    public function payableInvoices(): Collection
+    /** @return EloquentCollection<int, Invoice> */
+    public function payableInvoices(): EloquentCollection
     {
         return $this->invoices()->whereIn('status', ['sent', 'partial'])->get()->filter->acceptsPayments()->values();
     }
@@ -90,14 +92,24 @@ class Client extends Model
     }
 
     /**
-     * What the client owes right now (verified payments deducted): the balance of every contract issued to them,
-     * plus open invoices that are not tied to a contract. Invoices on a contract are covered by its balance.
+     * Due now: what is left to pay on issued invoices (sent or partly paid), per currency. This is what the client
+     * has actually been billed, including invoices left open on a terminated contract.
+     *
+     * @return array<string, float>
      */
-    public function outstanding(): float
+    public function dueNow(): array
     {
-        $contracts = $this->contracts()->whereIn('status', Contract::PAYABLE_STATUSES)->get()->filter->isIssued()->sum(fn (Contract $c) => $c->balance());
-        $looseInvoices = $this->invoices()->whereNull('contract_id')->whereIn('status', ['sent', 'partial'])->get()->sum(fn (Invoice $i) => $i->balance());
+        return sum_by_currency($this->invoices()->whereIn('status', ['sent', 'partial'])->get(), fn (Invoice $i) => $i->balance());
+    }
 
-        return round($contracts + $looseInvoices, 2);
+    /**
+     * Remaining on contracts: what the client's issued contracts still owe beyond their open invoices, i.e. not
+     * invoiced yet (the balance after a deposit, or recurring periods not billed yet), per currency.
+     *
+     * @return array<string, float>
+     */
+    public function remainingOnContracts(): array
+    {
+        return sum_by_currency($this->payableContracts(), fn (Contract $c) => Contract::notYetInvoiced($c));
     }
 }

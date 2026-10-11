@@ -18,7 +18,8 @@ class FileController extends Controller
         abort_if(blank($payment->proof_path), 404);
         $this->abortIfMissing($payment->proof_path, 'payment', $payment->id);
 
-        return Storage::disk('local')->response($payment->proof_path);
+        // Client uploads open in a sandbox so a crafted file can never run script on this site.
+        return Storage::disk('local')->response($payment->proof_path, null, ['Content-Security-Policy' => 'sandbox', 'X-Content-Type-Options' => 'nosniff']);
     }
 
     public function contract(Contract $contract): StreamedResponse
