@@ -5,8 +5,11 @@ namespace App\Http\Controllers\Client;
 use App\Http\Controllers\Controller;
 use App\Models\Payment;
 use App\Services\Notifier;
+use App\Support\LedgerCache;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -81,12 +84,6 @@ class PaymentController extends Controller
         }
         // An invoice always decides the contract and currency so a payment can never credit the wrong contract.
         $target = $invoice ?? $contract;
-        $owed = $target->balance() - (float) $target->payments()->where('status', 'pending')->sum('amount');
-        if ((float) $data['amount'] > round($owed, 2) + 0.005) {
-            throw ValidationException::withMessages(['amount' => $owed > 0
-                ? 'That is more than the '.money($owed, $target->currency).' still owed on '.$target->reference.' (after payments already waiting to be verified).'
-                : 'Payments already waiting to be verified cover what is owed on '.$target->reference.'. We will update your balance once they are checked.']);
-        }
         $data['contract_id'] = $invoice ? $invoice->contract_id : $contract->id;
         unset($data['proof']);
 
@@ -96,7 +93,25 @@ class PaymentController extends Controller
             throw ValidationException::withMessages(['proof' => 'The file could not be saved. Please try again or contact us.']);
         }
 
-        $payment = $client->payments()->create($data + ['currency' => $target->currency, 'status' => 'pending', 'submitted_by' => $request->user()->id, 'proof_path' => $proofPath]);
+        // The "not more than is owed" check and the save happen under a lock on the invoice or contract, so two
+        // submissions at the same moment cannot both pass the check.
+        try {
+            $payment = DB::transaction(function () use ($target, $data, $client, $request, $proofPath) {
+                $target::query()->lockForUpdate()->find($target->id);
+                LedgerCache::flush();
+                $owed = $target->balance() - (float) $target->payments()->where('status', 'pending')->sum('amount');
+                if ((float) $data['amount'] > round($owed, 2) + 0.005) {
+                    throw ValidationException::withMessages(['amount' => $owed > 0
+                        ? 'That is more than the '.money($owed, $target->currency).' still owed on '.$target->reference.' (after payments already waiting to be verified).'
+                        : 'Payments already waiting to be verified cover what is owed on '.$target->reference.'. We will update your balance once they are checked.']);
+                }
+
+                return $client->payments()->create($data + ['currency' => $target->currency, 'status' => 'pending', 'submitted_by' => $request->user()->id, 'proof_path' => $proofPath]);
+            });
+        } catch (ValidationException $e) {
+            $proofPath && Storage::disk('local')->delete($proofPath); // nothing was saved, so do not keep the upload
+            throw $e;
+        }
         app(Notifier::class)->paymentSubmitted($payment->load('client.users', 'invoice'));
 
         return redirect()->route('portal.payments.show', $payment)->with('saved', 'Payment submitted. We will verify it and update your balance, usually within one working day.');

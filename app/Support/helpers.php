@@ -7,7 +7,9 @@ if (! function_exists('money')) {
         $currency ??= config('company.currency.code');
         $symbol = config("company.currencies.{$currency}", $currency.' ');
 
-        return $symbol.number_format((float) $amount, 2);
+        $amount = (float) $amount;
+
+        return ($amount < 0 ? '−' : '').$symbol.number_format(abs($amount), 2);
     }
 }
 

@@ -21,11 +21,12 @@
 <body class="min-h-screen {{ $embed ? 'bg-transparent' : 'bg-[#dedee3]' }}">
     @unless ($embed)
     <div class="no-print sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-line bg-white px-4 py-3 text-sm">
-        <div class="flex items-center gap-3">@if ($back)<a href="{{ $back }}" class="btn btn-light btn-sm">&larr; Back</a>@endif<span class="font-semibold">{{ $title }}</span><span id="doc-pages" class="text-muted">Laying out pages…</span></div>
-        <button onclick="window.print()" class="btn btn-primary btn-sm">Print or save as PDF</button>
+        <div class="flex items-center gap-3">@if ($back)<a href="{{ $back }}" class="btn btn-light btn-sm">&larr; Back</a>@endif<span class="font-semibold">{{ $title }}</span><span id="doc-pages" class="text-muted" aria-live="polite">Laying out pages…</span></div>
+        <button type="button" onclick="window.print()" class="btn btn-primary btn-sm">Print or save as PDF</button>
     </div>
     @endunless
     <noscript><style>#doc-source[hidden] { display: block; }</style></noscript>
+    <h1 class="sr-only">{{ $title }}</h1>
     <div id="doc-source" hidden>{{ $slot }}</div>
     <main id="doc-stage" data-css="{{ Vite::asset('resources/css/document.css') }}" class="overflow-x-auto"></main>
 </body>

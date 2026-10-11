@@ -9,7 +9,7 @@
         <button class="sr-only focus:not-sr-only btn btn-light">Apply filters</button>
     </form>
     <div class="card overflow-x-auto p-0 sm:p-0">
-        <table class="table min-w-[640px]"><thead><tr><th>Date</th><th>Client</th><th>Method</th><th>For</th><th>Proof</th><th>Status</th><th class="num">Amount</th><th></th></tr></thead><tbody>
+        <table class="table min-w-[640px]"><thead><tr><x-sort-th column="date" label="Date" /><th>Client</th><th>Method</th><th>For</th><th>Proof</th><th>Status</th><x-sort-th column="amount" label="Amount" :num="true" /><th></th></tr></thead><tbody>
             @forelse ($payments as $p)<tr class="{{ $p->status === 'pending' ? 'bg-amber-50/60' : '' }}">
                 <td class="whitespace-nowrap">{{ $p->paid_on->format('j M Y') }}</td>
                 <td><a href="{{ route('admin.clients.show', $p->client) }}" class="font-semibold hover:text-brand-700">{{ $p->client->company }}</a></td>

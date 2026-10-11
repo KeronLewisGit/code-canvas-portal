@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
  */
 class ContractInvoicing
 {
-    public const KINDS = ['standard' => 'Invoice', 'deposit' => 'Deposit', 'balance' => 'Balance', 'cycle' => 'Billing period'];
+    public const KINDS = ['standard' => 'Invoice', 'deposit' => 'Deposit', 'balance' => 'Balance', 'cycle' => 'Billing period', 'late_fee' => 'Late fee'];
 
     /** The contract's own deposit, or the Settings default. */
     public static function depositPercent(Contract $contract): float

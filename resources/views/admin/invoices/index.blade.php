@@ -9,7 +9,7 @@
         <button class="sr-only focus:not-sr-only btn btn-light">Apply filters</button>
     </form>
     <div class="card overflow-x-auto p-0 sm:p-0">
-        <table class="table min-w-[640px]"><thead><tr><th>Invoice</th><th>Client</th><th>Issued</th><th>Due</th><th>Status</th><th class="num">Total</th><th class="num">Balance</th></tr></thead><tbody>
+        <table class="table min-w-[640px]"><thead><tr><th>Invoice</th><th>Client</th><x-sort-th column="issued" label="Issued" /><x-sort-th column="due" label="Due" /><th>Status</th><x-sort-th column="total" label="Total" :num="true" /><th class="num">Balance</th></tr></thead><tbody>
             @forelse ($invoices as $i)<tr><td><a href="{{ route('admin.invoices.show', $i) }}" class="font-semibold hover:text-brand-700">{{ $i->reference }}</a><span class="block text-xs text-muted">{{ $i->title }}</span></td><td>{{ $i->client->company }}</td><td class="text-xs">{{ $i->issue_date->format('j M Y') }}</td><td class="text-xs">{{ $i->due_date?->format('j M Y') ?? '—' }}</td><td><x-badge :status="$i->effectiveStatus()" /></td><td class="num font-semibold">{{ money($i->total, $i->currency) }}</td><td class="num">{{ money($i->balance(), $i->currency) }}</td></tr>
             @empty<tr><td colspan="7"><x-empty>{{ request()->anyFilled(['q', 'status', 'client']) ? 'Nothing matches these filters.' : 'No invoices yet.' }}</x-empty></td></tr>@endforelse
         </tbody></table>

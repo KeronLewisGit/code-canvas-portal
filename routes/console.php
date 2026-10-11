@@ -4,6 +4,7 @@ use App\Jobs\ExpireContracts;
 use App\Jobs\IssueRecurringInvoices;
 use App\Jobs\SendPaymentReminders;
 use App\Jobs\SendRenewalReminders;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
 
 // Hostinger: add a cron entry `* * * * * cd ~/public_html && php artisan schedule:run >> storage/logs/cron.log 2>&1`.
@@ -14,3 +15,7 @@ Schedule::job(new ExpireContracts)->dailyAt('01:00')->withoutOverlapping();
 Schedule::job(new IssueRecurringInvoices)->dailyAt('06:00')->withoutOverlapping(); // after expiry/renewal, before the working day
 Schedule::job(new SendRenewalReminders)->weeklyOn(1, '08:00')->withoutOverlapping();
 Schedule::job(new SendPaymentReminders)->weeklyOn(2, '09:00')->withoutOverlapping();
+
+// The database cache store never deletes expired entries itself; clear them nightly so the table stays small.
+Schedule::call(fn () => DB::table(config('cache.stores.database.table', 'cache'))->where('expiration', '<', now()->getTimestamp())->delete())
+    ->name('prune-expired-cache')->dailyAt('03:00')->withoutOverlapping();

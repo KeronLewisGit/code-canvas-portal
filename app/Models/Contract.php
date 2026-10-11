@@ -485,8 +485,11 @@ class Contract extends Model
         return 'data:image/png;base64,'.base64_encode(Storage::disk('local')->get($this->signature_path));
     }
 
+    private ?ContractFinance $financeCache = null;
+
+    /** One finance calculator per loaded contract, so reports reuse its summary instead of recomputing it. */
     public function finance(): ContractFinance
     {
-        return new ContractFinance($this);
+        return $this->financeCache ??= new ContractFinance($this);
     }
 }

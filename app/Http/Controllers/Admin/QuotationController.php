@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Concerns\SortsListings;
 use App\Http\Controllers\Admin\Concerns\ValidatesLineItems;
 use App\Http\Controllers\Controller;
 use App\Models\Client;
@@ -17,7 +18,7 @@ use Illuminate\View\View;
 
 class QuotationController extends Controller
 {
-    use ValidatesLineItems;
+    use SortsListings, ValidatesLineItems;
 
     public function index(Request $request): View
     {
@@ -27,7 +28,7 @@ class QuotationController extends Controller
             ->when($request->filled('status') && $request->status !== 'expired', fn ($q) => $q->where('status', $request->status))
             ->when($request->filled('client'), fn ($q) => $q->where('client_id', $request->client))
             ->when($request->filled('q'), fn ($q) => $q->where(fn ($w) => $w->where('title', 'like', '%'.$request->q.'%')->orWhere('reference', 'like', '%'.$request->q.'%')))
-            ->latest('issue_date')->latest('id')->paginate(25)->withQueryString();
+            ->tap(fn ($q) => $this->sorted($q, $request, ['issued' => 'issue_date', 'valid' => 'valid_until', 'total' => 'total'], fn ($q) => $q->latest('issue_date')->latest('id')))->paginate(25)->withQueryString();
 
         return view('admin.quotations.index', ['quotations' => $quotations, 'clients' => Client::orderBy('company')->get(['id', 'company'])]);
     }

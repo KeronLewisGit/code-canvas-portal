@@ -34,7 +34,7 @@
     </section>
     <div class="mt-6 grid gap-6 lg:grid-cols-2">
         <section class="card">
-            <div class="flex items-center justify-between"><h2 class="text-lg font-bold">Your contracts</h2><a href="{{ route('portal.contracts.index') }}" class="text-sm font-semibold text-brand-700">See all</a></div>
+            <x-card-header title="Your contracts"><a href="{{ route('portal.contracts.index') }}" class="text-sm font-semibold text-brand-700 hover:underline">See all</a></x-card-header>
             <ul class="mt-4 divide-y divide-line">
                 @forelse ($contracts->take(5) as $c)
                     <li class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-3">
@@ -45,7 +45,7 @@
             </ul>
         </section>
         <section class="card">
-            <div class="flex items-center justify-between"><h2 class="text-lg font-bold">Recent invoices</h2><a href="{{ route('portal.invoices.index') }}" class="text-sm font-semibold text-brand-700">See all</a></div>
+            <x-card-header title="Recent invoices"><a href="{{ route('portal.invoices.index') }}" class="text-sm font-semibold text-brand-700 hover:underline">See all</a></x-card-header>
             <ul class="mt-4 divide-y divide-line">
                 @forelse ($recentInvoices as $i)
                     <li class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-3">

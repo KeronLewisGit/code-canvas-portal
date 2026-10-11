@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Client;
 
+use App\Http\Controllers\Admin\ClientPreviewController;
 use App\Http\Controllers\Controller;
 use App\Models\Contract;
 use App\Services\ContractInvoicing;
@@ -26,7 +27,9 @@ class ContractController extends Controller
     public function show(Request $request, Contract $contract): View
     {
         $this->authorizeView($contract);
-        Audit::log($contract, 'viewed_by_client');
+        if (! ClientPreviewController::active()) {
+            Audit::log($contract, 'viewed_by_client');
+        }
 
         return view('portal.contracts.show', ['contract' => $contract->load(['invoices' => fn ($q) => $q->where('status', '!=', 'draft'), 'payments'])]);
     }

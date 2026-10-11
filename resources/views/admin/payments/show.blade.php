@@ -2,7 +2,7 @@
     <x-page :title="money($payment->amount, $payment->currency).' from '.$payment->client->company" :eyebrow="'Payment · '.($payment->methodName())" :back="[route('admin.payments.index'), 'Payments']" />
     <div class="grid gap-6 lg:grid-cols-3">
         <section class="card text-sm lg:col-span-2">
-            <div class="flex items-center justify-between"><h2 class="text-lg font-bold">Details</h2><x-badge :status="$payment->status" /></div>
+            <x-card-header title="Details"><x-badge :status="$payment->status" /></x-card-header>
             <dl class="mt-4 grid gap-4 sm:grid-cols-2">
                 <div><dt class="eyebrow">Client</dt><dd><a href="{{ route('admin.clients.show', $payment->client) }}" class="font-semibold hover:text-brand-700">{{ $payment->client->company }}</a></dd></div>
                 <div><dt class="eyebrow">Date paid</dt><dd class="font-semibold">{{ $payment->paid_on->format('l j F Y') }}</dd></div>

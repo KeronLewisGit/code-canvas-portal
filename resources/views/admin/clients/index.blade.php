@@ -10,9 +10,9 @@
         @if (request()->hasAny(['q', 'type', 'status']) && request()->anyFilled(['q', 'type', 'status']))<a href="{{ route('admin.clients.index') }}" class="btn btn-light">Clear filters</a>@endif
     </form>
     <div class="card overflow-x-auto p-0 sm:p-0">
-        <table class="table min-w-[720px]"><thead><tr><th>Client</th><th>Type</th><th>Contact</th><th>Contracts</th><th>Status</th><th></th></tr></thead><tbody>
-            @forelse ($clients as $c)<tr><td><a href="{{ route('admin.clients.show', $c) }}" class="font-semibold hover:text-brand-700">{{ $c->company }}</a></td><td>{{ \App\Models\Client::TYPES[$c->type] ?? 'Company' }}</td><td>@unless ($c->isIndividual()){{ $c->contact_name }}@endunless<span class="block {{ $c->isIndividual() ? '' : 'text-xs text-muted' }}">{{ $c->email }}</span></td><td>{{ $c->contracts_count }}</td><td><x-badge :status="$c->active ? 'active' : 'inactive'" /></td><td class="num"><a href="{{ route('admin.clients.show', $c) }}" class="btn btn-light btn-sm">View</a></td></tr>
-            @empty<tr><td colspan="6"><x-empty>{{ request()->anyFilled(['q', 'type', 'status']) ? 'No clients match these filters.' : 'No clients yet. Add your first one.' }}</x-empty></td></tr>@endforelse
+        <table class="table min-w-[720px]"><thead><tr><x-sort-th column="name" label="Client" /><th>Type</th><th>Contact</th><x-sort-th column="contracts" label="Contracts" /><th class="num">Due now</th><th>Status</th><th></th></tr></thead><tbody>
+            @forelse ($clients as $c)<tr><td><a href="{{ route('admin.clients.show', $c) }}" class="font-semibold hover:text-brand-700">{{ $c->company }}</a></td><td>{{ \App\Models\Client::TYPES[$c->type] ?? 'Company' }}</td><td>@unless ($c->isIndividual()){{ $c->contact_name }}@endunless<span class="block {{ $c->isIndividual() ? '' : 'text-xs text-muted' }}">{{ $c->email }}</span></td><td>{{ $c->contracts_count }}</td><td class="num font-semibold">{{ array_sum($due = $c->dueNow()) > 0 ? money_by_currency($due) : '—' }}</td><td><x-badge :status="$c->active ? 'active' : 'inactive'" /></td><td class="num"><a href="{{ route('admin.clients.show', $c) }}" class="btn btn-light btn-sm">View</a></td></tr>
+            @empty<tr><td colspan="7"><x-empty>{{ request()->anyFilled(['q', 'type', 'status']) ? 'No clients match these filters.' : 'No clients yet. Add your first one.' }}</x-empty></td></tr>@endforelse
         </tbody></table>
     </div>
     <div class="mt-4">{{ $clients->links() }}</div>

@@ -15,7 +15,7 @@
 
     <div class="mt-6 grid gap-6 lg:grid-cols-2">
         <section class="card overflow-x-auto">
-            <div class="flex items-center justify-between"><h2 class="text-lg font-bold">Payments awaiting verification</h2><a href="{{ route('admin.payments.index') }}" class="text-sm font-semibold text-brand-700">All payments</a></div>
+            <x-card-header title="Payments awaiting verification"><a href="{{ route('admin.payments.index') }}" class="text-sm font-semibold text-brand-700 hover:underline">All payments</a></x-card-header>
             @if ($pending->isEmpty())<p class="mt-4 text-sm text-muted">Nothing waiting. Client submissions appear here.</p>@else
             <table class="table mt-4"><thead class="sr-only"><tr><th>Payment</th><th>Amount</th><th>Action</th></tr></thead><tbody>
                 @foreach ($pending as $p)<tr><td><a href="{{ route('admin.payments.show', $p) }}" class="font-semibold hover:text-brand-700">{{ $p->client->company }}</a><span class="block text-xs text-muted">{{ $p->methodName() }} · {{ $p->paid_on->format('j M') }} · {{ $p->invoice?->reference ?? $p->contract?->reference }}</span></td><td class="num font-semibold">{{ money($p->amount, $p->currency) }}</td><td class="num"><a href="{{ route('admin.payments.show', $p) }}" class="btn btn-light btn-sm">Review payment</a></td></tr>@endforeach
@@ -32,7 +32,7 @@
             <p class="mt-4 text-sm"><a href="{{ route('admin.reports.revenue') }}" class="font-semibold text-brand-700 hover:underline">Revenue, forecasts and renewals in Reports</a></p>
         </section>
         <section class="card overflow-x-auto">
-            <div class="flex items-center justify-between"><h2 class="text-lg font-bold">Recent contracts</h2><a href="{{ route('admin.contracts.index') }}" class="text-sm font-semibold text-brand-700">All contracts</a></div>
+            <x-card-header title="Recent contracts"><a href="{{ route('admin.contracts.index') }}" class="text-sm font-semibold text-brand-700 hover:underline">All contracts</a></x-card-header>
             <table class="table mt-4"><thead class="sr-only"><tr><th>Contract</th><th>Status</th><th>Payment</th><th>Amount</th></tr></thead><tbody>
                 @forelse ($recentContracts as $c)<tr><td><a href="{{ route('admin.contracts.show', $c) }}" class="font-semibold hover:text-brand-700">{{ $c->title }}</a><span class="block text-xs text-muted">{{ $c->reference }} · {{ $c->client->company }}</span></td><td><x-badge :status="$c->status" /></td><td><x-badge :status="$c->paymentState()" /></td><td class="num font-semibold">{{ $c->amountLabel() }}</td></tr>@empty<tr><td class="text-muted">No contracts yet.</td></tr>@endforelse
             </tbody></table>

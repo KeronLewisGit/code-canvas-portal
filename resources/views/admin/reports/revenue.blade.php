@@ -42,7 +42,7 @@
                 @endforeach
                 @foreach ($series as $ym => $row)
                     @php($i = $loop->index) @php($x = $pad + $i * $slot + 1) @php($bh = $row['amount'] > 0 ? max(4, ($row['amount'] / $max) * ($h - 34)) : 0) @php($y = $h - $bh)
-                    <g tabindex="0">
+                    <g>
                         <title>{{ \Illuminate\Support\Carbon::createFromFormat('Y-m', $ym)->format('F Y') }}: {{ money($row['amount'], $cur) }}{{ $row['cancellable'] > 0 ? ' ('.money($row['cancellable'], $cur).' cancellable)' : '' }}</title>
                         @if ($bh > 0)<rect x="{{ $x }}" y="{{ $y }}" width="{{ $bar }}" height="{{ $bh }}" rx="4" fill="#1863dc" />@endif
                         @if ($row['amount'] > 0 && ($loop->first || $row['amount'] === $max || $loop->last))<text x="{{ $x + $bar / 2 }}" y="{{ $y - 6 }}" text-anchor="middle" font-size="11" font-weight="600" fill="#212121">{{ number_format($row['amount'] / 1000, 1) }}k</text>@endif

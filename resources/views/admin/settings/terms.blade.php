@@ -50,7 +50,7 @@
             </ol>
             <div class="mt-4 flex items-center justify-between gap-3">
                 <button class="btn btn-primary">Save {{ strtolower($group['label']) }}</button>
-                <button type="submit" form="reset-{{ $group['key'] }}" class="btn-link-danger" onclick="return confirm('Replace your edited {{ strtolower($group['label']) }} with the built-in defaults?')">Reset to defaults</button>
+                <button type="submit" form="reset-{{ $group['key'] }}" class="btn-link-danger" data-confirm="Replace your edited {{ strtolower($group['label']) }} with the built-in defaults?">Reset to defaults</button>
             </div>
         </form>
         <form id="reset-{{ $group['key'] }}" method="post" action="{{ route('admin.settings.terms.reset') }}" class="hidden">@csrf @method('delete')<input type="hidden" name="group" value="{{ $group['key'] }}"></form>

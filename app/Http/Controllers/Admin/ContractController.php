@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Concerns\SortsListings;
 use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\Contract;
@@ -20,6 +21,8 @@ use Illuminate\View\View;
 
 class ContractController extends Controller
 {
+    use SortsListings;
+
     public function __construct(private ContractLifecycle $lifecycle) {}
 
     public function index(Request $request): View
@@ -30,7 +33,7 @@ class ContractController extends Controller
             ->when($request->filled('cycle'), fn ($q) => $q->where('billing_cycle', $request->cycle))
             ->when($request->filled('client'), fn ($q) => $q->where('client_id', $request->client))
             ->when($request->filled('q'), fn ($q) => $q->where(fn ($w) => $w->where('title', 'like', '%'.$request->q.'%')->orWhere('reference', 'like', '%'.$request->q.'%')))
-            ->orderByRaw("case status when 'active' then 0 when 'approved' then 1 when 'draft' then 2 else 3 end")->latest('start_date')->paginate(25)->withQueryString();
+            ->tap(fn ($q) => $this->sorted($q, $request, ['start' => 'start_date', 'amount' => 'amount'], fn ($q) => $q->orderByRaw("case status when 'active' then 0 when 'approved' then 1 when 'draft' then 2 else 3 end")->latest('start_date')))->paginate(25)->withQueryString();
 
         return view('admin.contracts.index', ['contracts' => $contracts, 'clients' => Client::orderBy('company')->get(['id', 'company'])]);
     }

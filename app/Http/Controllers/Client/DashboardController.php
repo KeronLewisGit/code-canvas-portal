@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Client;
 
+use App\Http\Controllers\Admin\ClientPreviewController;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -12,7 +13,7 @@ class DashboardController extends Controller
     public function __invoke(Request $request): View|RedirectResponse
     {
         // Covers "remember me" sessions that never pass through the login form.
-        if ($request->user()->needsWelcome()) {
+        if ($request->user()->needsWelcome() && ! ClientPreviewController::active()) {
             return redirect()->route('portal.welcome');
         }
         $client = $request->user()->client;

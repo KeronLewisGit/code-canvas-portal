@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Concerns\SortsListings;
 use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\Contract;
@@ -11,19 +12,22 @@ use App\Services\Notifier;
 use App\Support\Audit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class PaymentController extends Controller
 {
+    use SortsListings;
+
     public function index(Request $request): View
     {
         $payments = Payment::with('client', 'contract', 'invoice')
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
             ->when($request->filled('client'), fn ($q) => $q->where('client_id', $request->client))
             ->when($request->filled('q'), fn ($q) => $q->where(fn ($w) => $w->where('reference', 'like', '%'.$request->q.'%')->orWhereHas('client', fn ($c) => $c->where('company', 'like', '%'.$request->q.'%'))))
-            ->orderByRaw("case status when 'pending' then 0 else 1 end")->latest('paid_on')->latest('id')->paginate(25)->withQueryString();
+            ->tap(fn ($q) => $this->sorted($q, $request, ['date' => 'paid_on', 'amount' => 'amount'], fn ($q) => $q->orderByRaw("case status when 'pending' then 0 else 1 end")->latest('paid_on')->latest('id')))->paginate(25)->withQueryString();
 
         return view('admin.payments.index', ['payments' => $payments, 'clients' => Client::orderBy('company')->get(['id', 'company']), 'pendingCount' => Payment::pending()->count()]);
     }
@@ -78,24 +82,41 @@ class PaymentController extends Controller
 
     public function verify(Request $request, Payment $payment): RedirectResponse
     {
-        if ($payment->status === 'verified') {
+        $changed = DB::transaction(function () use ($request, $payment) {
+            $locked = Payment::lockForUpdate()->findOrFail($payment->id);
+            if ($locked->status === 'verified') {
+                return false;
+            }
+            $locked->markVerified($request->user());
+            Audit::log($locked, 'verified', ['amount' => (float) $locked->amount]);
+
+            return true;
+        });
+        if (! $changed) {
             return back()->with('saved', 'This payment was already verified.');
         }
-        $payment->markVerified($request->user());
-        Audit::log($payment, 'verified', ['amount' => (float) $payment->amount]);
-        app(Notifier::class)->paymentDecided($payment->fresh(['client.users', 'invoice', 'contract']));
+        $payment = $payment->fresh(['client.users', 'invoice', 'contract']);
+        app(Notifier::class)->paymentDecided($payment);
 
-        return back()->with('saved', 'Payment verified. '.($payment->contract ? $payment->contract->reference.' is now '.$payment->contract->paymentState().'.' : ''));
+        return back()->with('saved', 'Payment verified. '.($payment->contract ? $payment->contract->reference.' is now '.strtolower(status_label($payment->contract->paymentState())).'.' : ''));
     }
 
     public function reject(Request $request, Payment $payment): RedirectResponse
     {
         $reason = $request->validate(['rejection_reason' => ['required', 'string', 'max:1000']])['rejection_reason'];
-        if ($payment->status === 'rejected') {
+        $changed = DB::transaction(function () use ($request, $payment, $reason) {
+            $locked = Payment::lockForUpdate()->findOrFail($payment->id);
+            if ($locked->status === 'rejected') {
+                return false;
+            }
+            $locked->markRejected($request->user(), $reason);
+            Audit::log($locked, 'rejected', ['reason' => $reason]);
+
+            return true;
+        });
+        if (! $changed) {
             return back()->with('saved', 'This payment was already rejected.');
         }
-        $payment->markRejected($request->user(), $reason);
-        Audit::log($payment, 'rejected', ['reason' => $reason]);
         app(Notifier::class)->paymentDecided($payment->fresh(['client.users', 'invoice', 'contract']));
 
         return back()->with('saved', 'Payment rejected. The client can see why and resubmit.');
