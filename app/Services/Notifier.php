@@ -22,7 +22,7 @@ class Notifier
     public function quotationSent(Quotation $q): void
     {
         $this->client($q->client, new PortalMail('Quotation '.$q->reference.' is ready for you', ['We have prepared a quotation for "'.$q->title.'" totalling '.money($q->total, $q->currency).'.', $q->valid_until ? 'It is valid until '.$q->valid_until->format('j F Y').'.' : 'Let us know if you have any questions.', 'You can review it, download a PDF, and accept or decline it in your client portal.'], 'Review the quotation', route('portal.quotations.show', $q)));
-        $this->admins(new PortalMail('Sent: quotation '.$q->reference, [$q->reference.' for '.$q->client->company.' ('.money($q->total, $q->currency).') was emailed to the client.'], 'Open quotation', route('admin.quotations.show', $q)));
+        $this->adminActed() || $this->admins(new PortalMail('Sent: quotation '.$q->reference, [$q->reference.' for '.$q->client->company.' ('.money($q->total, $q->currency).') was emailed to the client.'], 'Open quotation', route('admin.quotations.show', $q)));
     }
 
     /**
@@ -48,13 +48,13 @@ class Notifier
     public function invoiceSent(Invoice $i): void
     {
         $this->client($i->client, new PortalMail('Invoice '.$i->reference.' for '.money($i->total, $i->currency), ['Invoice '.$i->reference.' ("'.$i->title.'") is now available.', 'Amount due: '.money($i->balance(), $i->currency).($i->due_date ? ', payable by '.$i->due_date->format('j F Y') : '').' ('.$i->termsLabel().').', 'Pay by bank transfer, cheque or cash, then submit the payment in your portal so we can confirm it.'], 'View and pay the invoice', route('portal.invoices.show', $i)));
-        $this->admins(new PortalMail('Sent: invoice '.$i->reference, [$i->reference.' for '.$i->client->company.' ('.money($i->total, $i->currency).') was emailed to the client.'], 'Open invoice', route('admin.invoices.show', $i)));
+        $this->adminActed() || $this->admins(new PortalMail('Sent: invoice '.$i->reference, [$i->reference.' for '.$i->client->company.' ('.money($i->total, $i->currency).') was emailed to the client.'], 'Open invoice', route('admin.invoices.show', $i)));
     }
 
     public function paymentSubmitted(Payment $p): void
     {
         $this->admins(new PortalMail('Payment to verify: '.money($p->amount, $p->currency).' from '.$p->client->company, [$p->client->company.' submitted a '.strtolower($p->methodName()).' payment of '.money($p->amount, $p->currency).' dated '.$p->paid_on->format('j F Y').($p->invoice ? ' against '.$p->invoice->reference : '').'.', $p->proof_path ? 'A proof file is attached in the portal.' : 'Reference: '.($p->reference ?: 'none given').'.', 'Please check your records and confirm or reject it.'], 'Review the payment', route('admin.payments.show', $p)));
-        $this->client($p->client, new PortalMail('We received your payment submission', ['Thank you. Your '.strtolower($p->methodName()).' payment of '.money($p->amount, $p->currency).' has been submitted and is awaiting verification.', 'We usually confirm within one working day and will email you once it is verified.'], 'View payment', route('portal.payments.show', $p)));
+        $this->client($p->client, new PortalMail('We received your payment of '.money($p->amount, $p->currency), ['Thank you. Your '.strtolower($p->methodName()).' payment of '.money($p->amount, $p->currency).' has been submitted and is awaiting verification.', 'We usually confirm within one working day and will email you once it is verified.'], 'View payment', route('portal.payments.show', $p)));
     }
 
     public function paymentDecided(Payment $p): void
@@ -68,8 +68,8 @@ class Notifier
 
     public function contractSentForSignature(Contract $c, ?string $note = null, bool $notifyAdmins = true): void
     {
-        $this->client($c->client, new PortalMail('Contract '.$c->reference.' is ready to sign', array_values(array_filter([$note, 'The agreement "'.$c->title.'" ('.$c->amountLabel().') is ready for your signature.', 'Read it in your portal, then sign electronically in under a minute. Work starts once it is signed and the deposit is received.'])), 'Read and sign the contract', route('portal.contracts.show', $c)));
-        $notifyAdmins && $this->admins(new PortalMail('Sent for signature: '.$c->reference, [$c->reference.' for '.$c->client->company.' was sent to the client to sign.'], 'Open contract', route('admin.contracts.show', $c)));
+        $this->client($c->client, new PortalMail('Contract '.$c->reference.' is ready to sign', array_values(array_filter([$note, 'The agreement "'.$c->title.'" ('.$c->amountLabel().') is ready for your signature.', 'Read it in your portal, then sign electronically in under a minute. '.self::workStarts($c)])), 'Read and sign the contract', route('portal.contracts.show', $c)));
+        $notifyAdmins && ! $this->adminActed() && $this->admins(new PortalMail('Sent for signature: '.$c->reference, [$c->reference.' for '.$c->client->company.' was sent to the client to sign.'], 'Open contract', route('admin.contracts.show', $c)));
     }
 
     /** One email each: the client gets their signed copy and, when one was issued, the invoice to pay. */
@@ -90,25 +90,38 @@ class Notifier
 
     public function contractStatus(Contract $c, string $action): void
     {
-        $text = match ($action) {
-            'activate' => 'Contract '.$c->reference.' ("'.$c->title.'") is now active.',
-            'complete' => 'Contract '.$c->reference.' ("'.$c->title.'") has been marked completed. Thank you for working with us.',
-            'terminate' => 'Contract '.$c->reference.' ("'.$c->title.'") was terminated effective '.$c->terminated_at?->format('j F Y').'.',
-            'cancel' => 'Contract '.$c->reference.' ("'.$c->title.'") was cancelled before it started.',
-            default => null,
+        $contact = 'Questions? Reply to this email or call '.config('company.phone').'.';
+        [$subject, $lines] = match ($action) {
+            'activate' => ['Contract '.$c->reference.' is now active', ['Contract '.$c->reference.' ("'.$c->title.'") is now active.']],
+            'complete' => ['Contract '.$c->reference.' is complete', ['Contract '.$c->reference.' ("'.$c->title.'") has been marked completed. Thank you for working with us.']],
+            'terminate' => ['Contract '.$c->reference.' has ended', array_values(array_filter(['Contract '.$c->reference.' ("'.$c->title.'") was terminated effective '.$c->terminated_at?->format('j F Y').'.', $c->termination_reason ? 'Reason: '.$c->termination_reason : null, $contact]))],
+            'cancel' => ['Contract '.$c->reference.' was cancelled', ['Contract '.$c->reference.' ("'.$c->title.'") was cancelled before it started. Any unpaid invoices for it have been cancelled too.', $contact]],
+            default => [null, []],
         };
-        if ($text) {
-            $this->client($c->client, new PortalMail('Update on contract '.$c->reference, [$text], 'View contract', route('portal.contracts.show', $c)));
+        if ($subject) {
+            $this->client($c->client, new PortalMail($subject, $lines, 'View contract', route('portal.contracts.show', $c)));
         }
+    }
+
+    /** The next-step sentence for a contract: a deposit is mentioned only where one is taken. */
+    private static function workStarts(Contract $c): string
+    {
+        return ContractInvoicing::takesDeposit($c) ? 'Work starts once it is signed and the deposit is received.' : 'Work starts once it is signed.';
+    }
+
+    /** True when an admin is doing this themselves, so they need no email about it; automation and clients still notify. */
+    private function adminActed(): bool
+    {
+        return (bool) request()->user()?->isAdmin();
     }
 
     /** Manual or scheduled nudge. Stamps reminded_at and writes to the audit log only when the email actually went out; null otherwise. */
     public function remind(Invoice|Quotation|Contract $doc, ?User $by = null): ?string
     {
         [$subject, $lines, $label, $url] = match (true) {
-            $doc instanceof Invoice => ['Reminder: invoice '.$doc->reference.' has '.money($doc->balance(), $doc->currency).' outstanding', ['A friendly reminder that invoice '.$doc->reference.' ("'.$doc->title.'") has a balance of '.money($doc->balance(), $doc->currency).($doc->due_date ? (Invoice::dateHasPassed($doc->due_date) ? ', which was due on ' : ', due on ').$doc->due_date->format('j F Y') : '').'.', 'Pay by bank transfer, cheque or cash and submit the payment in your portal so we can confirm it. If you have already paid, please submit the details and ignore this reminder.'], 'View and pay the invoice', route('portal.invoices.show', $doc)],
+            $doc instanceof Invoice => ['Reminder: invoice '.$doc->reference.' has '.money($doc->balance(), $doc->currency).' outstanding', ['A friendly reminder that invoice '.$doc->reference.' ("'.$doc->title.'") has a balance of '.money($doc->balance(), $doc->currency).($doc->due_date ? (Invoice::dateHasPassed($doc->due_date) ? ', which was due on ' : ', due on ').$doc->due_date->format('j F Y') : '').'.', 'Pay by bank transfer, cheque or cash and submit the payment in your portal so we can confirm it. If you have already paid and submitted it in the portal, you can ignore this reminder.'], 'View and pay the invoice', route('portal.invoices.show', $doc)],
             $doc instanceof Quotation => ['Reminder: quotation '.$doc->reference.' is waiting for your answer', ['Quotation '.$doc->reference.' ("'.$doc->title.'", '.money($doc->total, $doc->currency).') is still open'.($doc->valid_until ? ' and is valid until '.$doc->valid_until->format('j F Y') : '').'.', 'Accept or decline it in your portal, or reply if you would like any changes.'], 'Review the quotation', route('portal.quotations.show', $doc)],
-            default => ['Reminder: contract '.$doc->reference.' is waiting for your signature', ['The agreement "'.$doc->title.'" is ready to sign in your portal. Work starts once it is signed and the deposit is received.'], 'Read and sign the contract', route('portal.contracts.show', $doc)],
+            default => ['Reminder: contract '.$doc->reference.' is waiting for your signature', ['The agreement "'.$doc->title.'" is ready to sign in your portal. '.self::workStarts($doc)], 'Read and sign the contract', route('portal.contracts.show', $doc)],
         };
         if (! $this->client($doc->client, new PortalMail($subject, $lines, $label, $url))) {
             return null;
@@ -120,27 +133,23 @@ class Notifier
     }
 
     /**
-     * Login details for one portal user, sent only to that address (never to the client's other logins).
-     * Sent immediately rather than queued, so the plain password is never written to the jobs table and a
-     * delivery failure is reported to the admin on the spot.
+     * A "Set your password" link for one portal user, sent only to that address (never to the client's other
+     * logins). No password ever travels by email. Sent immediately rather than queued, so a delivery failure is
+     * reported to the admin on the spot.
      */
-    public function loginDetails(User $user, string $password, bool $isNew = true): bool
+    public function loginDetails(User $user, string $setPasswordUrl, bool $isNew = true): bool
     {
-        $company = config('company.name');
         $mail = $isNew
-            ? new PortalMail('Welcome to the '.config('company.short').' client portal', [
-                'You have been onboarded as a client of '.$company.'. Your client portal is ready: it is where you will review quotations, read and sign contracts, see invoices and submit payments.',
-                'Sign in with these details:',
-                'Email: '.$user->email,
-                'Password: '.$password,
-                'The first time you sign in we will show you around, and you can choose your own password there. Please keep these details private.',
-            ], 'Sign in to the portal', route('login'))
-            : new PortalMail('Your '.config('company.short').' portal password was reset', [
-                'A new password has been generated for your client portal login. The old one no longer works.',
-                'Email: '.$user->email,
-                'Password: '.$password,
-                'Once signed in, choose your own password under Password in the menu.',
-            ], 'Sign in to the portal', route('login'));
+            ? new PortalMail('Your '.config('company.short').' client portal is ready', [
+                'We have set up your '.config('company.name').' client portal. It is where you will review quotations, read and sign contracts, see invoices and tell us about payments.',
+                'Your sign-in email is '.$user->email.'. Choose your password with the button below to get started.',
+                'The link works for 7 days. After that, use "Forgot password?" on the sign-in page.',
+            ], 'Set your password', $setPasswordUrl)
+            : new PortalMail('Choose a new password for your '.config('company.short').' portal', [
+                'Here is a link to choose a new password for your client portal ('.$user->email.').',
+                'Your current password keeps working until you set a new one. The link works for 7 days.',
+                'If you did not ask for this, you can ignore this email.',
+            ], 'Choose a new password', $setPasswordUrl);
 
         return $this->deliver(function () use ($user, $mail) {
             $user->notifyNow($mail);

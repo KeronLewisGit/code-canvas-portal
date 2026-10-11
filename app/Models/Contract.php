@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\DateRules;
 use App\Models\Concerns\HasReference;
 use App\Services\ContractFinance;
+use App\Support\LedgerCache;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -36,6 +37,7 @@ use Illuminate\Support\Facades\Storage;
  * @property int|null $signed_by
  * @property Carbon|null $sent_for_signature_at
  * @property int $payment_terms_days
+ * @property string|null $deposit_percent override of the Settings deposit (null = use the setting)
  * @property int|null $notice_period_days
  * @property bool $auto_renew
  * @property int|null $renewal_of_id
@@ -61,6 +63,12 @@ class Contract extends Model
 
     /** Mirror the database defaults so a freshly created model behaves like a reloaded one. */
     protected $attributes = ['status' => 'draft', 'billing_cycle' => 'one_time', 'currency' => 'TTD', 'payment_terms_days' => 14, 'auto_renew' => false, 'confidential' => false, 'version' => 1];
+
+    protected static function booted(): void
+    {
+        static::saved(fn () => LedgerCache::flush());
+        static::deleted(fn () => LedgerCache::flush());
+    }
 
     protected function casts(): array
     {
@@ -289,12 +297,22 @@ class Contract extends Model
         if ($until->lt($start)) {
             return 0;
         }
-        $cycle = $this->cycle();
-        if ($cycle['days']) {
-            return intdiv((int) $start->diffInDays($until), $cycle['days']) + 1;
+        // Count the cycle starts on or before $until. Months step with addMonthsNoOverflow (31 Jan → 28 Feb → 31 Mar),
+        // the same rule nextDueDate() and the forecast use, so a cycle is counted on the day it is shown as due.
+        $n = 1;
+        while ($n < 10000 && $this->cycleStart($n)->lte($until)) {
+            $n++;
         }
 
-        return intdiv((int) $start->diffInMonths($until), $cycle['months']) + 1;
+        return $n;
+    }
+
+    /** Start date of cycle $n (0 = the contract start). */
+    public function cycleStart(int $n): Carbon
+    {
+        $cycle = $this->cycle();
+
+        return $cycle['days'] ? $this->start_date->copy()->startOfDay()->addDays($n * $cycle['days']) : $this->start_date->copy()->startOfDay()->addMonthsNoOverflow($n * $cycle['months']);
     }
 
     /** Amount the client should have paid so far: the full price, or cycles elapsed times the cycle price. */
@@ -311,7 +329,7 @@ class Contract extends Model
         }
         $cycle = $this->cycle();
         $elapsed = $this->cyclesElapsed();
-        $next = $cycle['days'] ? $this->start_date->copy()->addDays($elapsed * $cycle['days']) : $this->start_date->copy()->addMonthsNoOverflow($elapsed * $cycle['months']);
+        $next = $this->cycleStart($elapsed);
         if ($this->end_date && $next->gt($this->end_date)) {
             return null;
         }
@@ -332,12 +350,72 @@ class Contract extends Model
 
     public function paidAmount(): float
     {
-        return (float) $this->payments()->where('status', 'verified')->sum('amount');
+        return LedgerCache::remember('contract-paid:'.$this->id, fn () => (float) $this->payments()->where('status', 'verified')->sum('amount'));
+    }
+
+    /**
+     * Verified payments made against the contract without naming an invoice are applied to its open invoices
+     * (same currency, oldest first) after each invoice's own payments. So paying "the contract" also settles the
+     * invoice that bills it, and contract and invoice balances agree. Returns invoice id => amount applied.
+     *
+     * @return array<int, float>
+     */
+    public function creditAllocation(): array
+    {
+        return $this->allocateCredit()['applied'];
+    }
+
+    /** Contract-level payments not needed by any invoice yet: shown as credit, used by the next invoice. */
+    public function unallocatedCredit(): float
+    {
+        return $this->allocateCredit()['left'];
+    }
+
+    /** @return array{applied: array<int, float>, left: float} */
+    private function allocateCredit(): array
+    {
+        return LedgerCache::remember('contract-credit:'.$this->id, fn () => $this->computeCreditAllocation());
+    }
+
+    /** @return array{applied: array<int, float>, left: float} */
+    private function computeCreditAllocation(): array
+    {
+        $pool = (float) $this->payments()->where('status', 'verified')->whereNull('invoice_id')->sum('amount');
+        $applied = [];
+        if ($pool > 0) {
+            $invoices = $this->invoices()->whereNotIn('status', ['draft', 'cancelled'])->where('currency', $this->currency)->reorder()->orderBy('issue_date')->orderBy('id')->get();
+            foreach ($invoices as $invoice) {
+                $take = round(min(max(0, (float) $invoice->total - $invoice->directPaidAmount()), $pool), 2);
+                if ($take > 0) {
+                    $applied[$invoice->id] = $take;
+                    $pool = round($pool - $take, 2);
+                }
+                if ($pool <= 0) {
+                    break;
+                }
+            }
+        }
+
+        return ['applied' => $applied, 'left' => max(0, round($pool, 2))];
+    }
+
+    /** What this contract still owes that no open invoice covers yet (balance minus open invoice balances). */
+    public static function notYetInvoiced(Contract $contract): float
+    {
+        $onInvoices = $contract->invoices()->whereIn('status', ['sent', 'partial'])->get()->sum(fn (Invoice $i) => $i->balance());
+
+        return max(0, round($contract->balance() - $onInvoices, 2));
+    }
+
+    /** Re-derive the status of every invoice on this contract (after any payment on it changes). */
+    public function refreshInvoiceStatuses(): void
+    {
+        $this->invoices()->whereNotIn('status', ['draft', 'cancelled'])->get()->each->refreshPaymentStatus();
     }
 
     public function pendingAmount(): float
     {
-        return (float) $this->payments()->where('status', 'pending')->sum('amount');
+        return LedgerCache::remember('contract-pending:'.$this->id, fn () => (float) $this->payments()->where('status', 'pending')->sum('amount'));
     }
 
     /** What is owed right now: due to date minus verified payments. */

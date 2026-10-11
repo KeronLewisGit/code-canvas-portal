@@ -14,7 +14,8 @@ class SendPaymentReminders implements ShouldQueue
 
     public function handle(Notifier $notifier): void
     {
-        $ids = Invoice::whereIn('status', ['sent', 'partial'])->whereDate('due_date', '<', now()->toDateString())
+        $ids = Invoice::whereIn('status', ['sent', 'partial'])
+            ->where(fn ($q) => $q->whereDate('due_date', '<', now()->toDateString())->orWhere(fn ($r) => $r->whereNull('due_date')->whereDate('issue_date', '<', now()->subDays(14)->toDateString()))) // "due on receipt" invoices get two weeks first
             ->where(fn ($q) => $q->whereNull('reminded_at')->orWhere('reminded_at', '<', now()->subDays(6)))->pluck('id'); // 6, not 7: the weekly run drifts by seconds and would otherwise skip a week
         foreach ($ids as $id) {
             try {

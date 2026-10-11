@@ -12,11 +12,13 @@ Route::get('/', fn () => auth()->check() ? redirect()->route(auth()->user()->isA
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
-    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1')->name('login.attempt');
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login')->name('login.attempt');
     Route::get('/forgot-password', [PasswordController::class, 'request'])->name('password.request');
     Route::post('/forgot-password', [PasswordController::class, 'email'])->middleware('throttle:5,1')->name('password.email');
     Route::get('/reset-password/{token}', [PasswordController::class, 'reset'])->name('password.reset');
     Route::post('/reset-password', [PasswordController::class, 'update'])->name('password.update');
+    Route::get('/set-password/{token}', [PasswordController::class, 'invite'])->name('password.invite');
+    Route::post('/set-password', [PasswordController::class, 'acceptInvite'])->middleware('throttle:10,1')->name('password.invite.update');
 });
 
 Route::middleware('auth')->group(function () {
@@ -28,6 +30,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/documents/quotations/{quotation}/print', [DocumentController::class, 'quotation'])->name('documents.quotation');
     Route::get('/documents/invoices/{invoice}/print', [DocumentController::class, 'invoice'])->name('documents.invoice');
     Route::get('/documents/contracts/{contract}/print', [DocumentController::class, 'contract'])->name('documents.contract');
+    Route::get('/documents/clients/{client}/statement', [DocumentController::class, 'statement'])->name('documents.statement');
     Route::get('/files/payments/{payment}/proof', [FileController::class, 'proof'])->name('files.proof');
     Route::get('/files/contracts/{contract}/document', [FileController::class, 'contract'])->name('files.contract');
 });
@@ -96,6 +99,6 @@ Route::middleware(['auth', 'role:client'])->prefix('portal')->name('portal.')->g
     Route::get('invoices/{invoice}', [Portal\InvoiceController::class, 'show'])->name('invoices.show');
     Route::get('payments', [Portal\PaymentController::class, 'index'])->name('payments.index');
     Route::get('payments/new', [Portal\PaymentController::class, 'create'])->name('payments.create');
-    Route::post('payments', [Portal\PaymentController::class, 'store'])->name('payments.store');
+    Route::post('payments', [Portal\PaymentController::class, 'store'])->middleware('throttle:6,1')->name('payments.store');
     Route::get('payments/{payment}', [Portal\PaymentController::class, 'show'])->name('payments.show');
 });

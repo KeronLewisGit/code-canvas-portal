@@ -2,8 +2,12 @@
 # into the Laravel public/ folder and keep the rest of the tree private.
 <IfModule mod_rewrite.c>
     RewriteEngine On
+    # HTTPS only (the X-Forwarded-Proto check avoids a loop behind Hostinger's proxy).
+    RewriteCond %{HTTPS} !=on
+    RewriteCond %{HTTP:X-Forwarded-Proto} !https
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
     RewriteCond %{REQUEST_URI} !^/public/
-    RewriteRule ^(\.env|\.git|vendor|storage|bootstrap|config|database|app|routes|resources|tests|artisan|composer\.(json|lock)|package(-lock)?\.json)(/|$) - [F,L]
+    RewriteRule ^(\.env|\.git|vendor|storage|bootstrap|config|database|app|routes|resources|tests|scripts|artisan|composer\.(json|lock)|package(-lock)?\.json)(/|$) - [F,L]
     RewriteCond %{REQUEST_URI} !^/public/
     RewriteRule ^(.*)$ public/$1 [L]
 </IfModule>

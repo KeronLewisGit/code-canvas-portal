@@ -1,18 +1,18 @@
 <x-layout title="Submit a payment">
     @php($bank = config('company.bank'))
-    @php($methods = config('company.payment_methods'))
+    @php($methods = \App\Models\Payment::clientMethods())
     <x-page title="Submit a payment" subtitle="We verify every payment before it counts toward your balance, usually within one working day." :back="[route('portal.payments.index'), 'Payments']" />
     <div class="grid gap-6 lg:grid-cols-3">
-        <form method="post" action="{{ route('portal.payments.store') }}" enctype="multipart/form-data" class="card grid gap-5 sm:grid-cols-2 lg:col-span-2" x-data="paymentForm(@js(old('method', $payment->method)), @js(collect($methods)->map->proof))">
+        <form method="post" action="{{ route('portal.payments.store') }}" enctype="multipart/form-data" class="card grid gap-5 sm:grid-cols-2 lg:col-span-2" x-data="paymentForm(@js(old('method', $payment->method)), @js(collect($methods)->map->proof), @js((string) old('invoice_id', $payment->invoice_id)), @js(config('company.currencies.'.$payment->currency, $payment->currency)))">
             @csrf
-            <p class="text-sm text-muted sm:col-span-2">Choose the invoice you are paying. If you are paying toward a contract without an invoice, choose the contract instead.</p>
+            <p class="text-sm text-muted sm:col-span-2">Choose the invoice you are paying.</p>
             <x-field label="Invoice" name="invoice_id">
-                <select id="invoice_id" name="invoice_id" class="input" @change="const b = $event.target.selectedOptions[0]?.dataset.balance; if (b) $refs.amount.value = b"><option value="">No specific invoice</option>@foreach ($invoices as $i)<option value="{{ $i->id }}" data-balance="{{ number_format($i->balance(), 2, '.', '') }}" @selected((int) old('invoice_id', $payment->invoice_id) === $i->id)>{{ $i->reference }} · balance {{ money($i->balance(), $i->currency) }}</option>@endforeach</select>
+                <select id="invoice_id" name="invoice_id" class="input" x-model="invoice" @change="pickInvoice($event.target.selectedOptions[0])"><option value="">No specific invoice</option>@foreach ($invoices as $i)<option value="{{ $i->id }}" data-balance="{{ number_format($i->balance(), 2, '.', '') }}" data-symbol="{{ config('company.currencies.'.$i->currency, $i->currency) }}" @selected((int) old('invoice_id', $payment->invoice_id) === $i->id)>{{ $i->reference }} · balance {{ money($i->balance(), $i->currency) }}</option>@endforeach</select>
             </x-field>
-            <x-field label="Contract" name="contract_id">
-                <select id="contract_id" name="contract_id" class="input"><option value="">No specific contract</option>@foreach ($contracts as $c)<option value="{{ $c->id }}" @selected((int) old('contract_id', $payment->contract_id) === $c->id)>{{ $c->title }} · balance {{ money($c->balance(), $c->currency) }}</option>@endforeach</select>
+            <x-field label="Contract" name="contract_id" x-show="!invoice" hint="Only if you are paying toward a contract without an invoice.">
+                <select id="contract_id" name="contract_id" class="input" x-bind:disabled="!!invoice" @change="symbol = $event.target.selectedOptions[0]?.dataset.symbol || symbol"><option value="">No specific contract</option>@foreach ($contracts as $c)<option value="{{ $c->id }}" data-symbol="{{ config('company.currencies.'.$c->currency, $c->currency) }}" @selected((int) old('contract_id', $payment->contract_id) === $c->id)>{{ $c->title }} · balance {{ money($c->balance(), $c->currency) }}</option>@endforeach</select>
             </x-field>
-            <x-field label="Amount paid" name="amount" required><input id="amount" x-ref="amount" name="amount" type="number" inputmode="decimal" step="0.01" min="0.01" value="{{ old('amount', $payment->amount) }}" required class="input"></x-field>
+            <x-field label="Amount paid" name="amount" required><div class="relative"><span class="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-muted" x-text="symbol" aria-hidden="true"></span><input id="amount" x-ref="amount" name="amount" type="number" inputmode="decimal" step="0.01" min="0.01" value="{{ old('amount', $payment->amount) }}" required class="input pl-12"></div></x-field>
             <x-field label="Date paid" name="paid_on" required><input id="paid_on" name="paid_on" type="date" max="{{ now()->format('Y-m-d') }}" value="{{ old('paid_on', $payment->paid_on?->format('Y-m-d')) }}" required class="input"></x-field>
             <x-field label="How did you pay?" name="method" required class="sm:col-span-2">
                 <div class="grid gap-2 sm:grid-cols-3">
@@ -41,7 +41,7 @@
                     <div><dt class="eyebrow">Account number</dt><dd class="font-mono font-semibold">{{ $bank['account_number'] }}</dd></div>
                     <div><dt class="eyebrow">Reference</dt><dd>Your invoice number</dd></div>
                 </dl>
-                <p class="mt-4 text-xs text-muted">Cheques payable to {{ $bank['cheque_payable_to'] }}. Card payments through the portal are coming soon.</p>
+                <p class="mt-4 text-xs text-muted">Cheques payable to {{ $bank['cheque_payable_to'] }}.</p>
             </section>
         </aside>
     </div>

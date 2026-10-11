@@ -40,7 +40,7 @@
                     <p class="mt-1 text-muted">Made a mistake? You can flip the decision.</p>
                     <div class="mt-4 flex gap-2">
                         @if ($payment->status === 'rejected')<form method="post" action="{{ route('admin.payments.verify', $payment) }}">@csrf @method('patch')<button class="btn btn-light btn-sm">Verify instead</button></form>@endif
-                        @if ($payment->status === 'verified')<form method="post" action="{{ route('admin.payments.reject', $payment) }}" data-confirm="Reverse this verification? The payment becomes rejected and the client is emailed.">@csrf @method('patch')<input type="hidden" name="rejection_reason" value="Reversed by {{ config('company.short') }}."><button class="btn btn-light btn-sm text-red-700">Reverse verification</button></form>@endif
+                        @if ($payment->status === 'verified')<details class="mt-2"><summary class="cursor-pointer text-sm font-semibold text-red-700">Reverse this verification</summary><form method="post" action="{{ route('admin.payments.reject', $payment) }}" class="mt-2 space-y-2" data-confirm="Reverse this verification? The payment becomes rejected and the client is emailed the reason.">@csrf @method('patch')<x-field label="Reason (the client sees this)" name="rejection_reason" required><textarea id="rejection_reason" name="rejection_reason" rows="2" required class="input" placeholder="e.g. the transfer was returned by the bank">{{ old('rejection_reason') }}</textarea></x-field><button class="btn btn-light btn-sm text-red-700">Reverse verification</button></form></details>@endif
                     </div>
                 </section>
             @endif

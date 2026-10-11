@@ -35,13 +35,11 @@ class OnboardingTest extends TestCase
 
         $client = Client::firstWhere('company', 'Acme');
         $user = $client->users()->sole();
-        $password = $this->emailedPassword($user);
         $this->assertSame(['ann@acme.test', 'Ann', 'client'], [$user->email, $user->name, $user->role]);
-        $this->assertTrue(Hash::check($password, $user->password));
-        $this->assertNull(session('credentials'), 'no banner once the details are emailed');
+        $this->assertNull(session('credentials'), 'no banner once the link is emailed');
 
-        Notification::assertSentTo($user, PortalMail::class, fn (PortalMail $mail) => str_contains($mail->subject, 'Welcome to the')
-            && str_contains($mail->lines[0], 'onboarded') && in_array('Password: '.$password, $mail->lines, true) && $mail->actionUrl === route('login'));
+        Notification::assertSentTo($user, PortalMail::class, fn (PortalMail $mail) => str_contains($mail->subject, 'client portal is ready')
+            && str_contains($mail->lines[1], 'ann@acme.test') && str_contains($mail->actionUrl, '/set-password/'));
         // Credentials must never sit in the queue: the mail is sent on the spot.
         Notification::assertSentTimes(PortalMail::class, 1);
     }
@@ -87,7 +85,7 @@ class OnboardingTest extends TestCase
         $this->post(route('portal.welcome.complete'))->assertRedirect(route('portal.invoices.index'));
         $this->assertNotNull($user->fresh()->welcomed_at);
         $this->assertNull($user->fresh()->password_changed_at);
-        $this->get(route('portal.dashboard'))->assertOk()->assertSee('still using the password we emailed you');
+        $this->get(route('portal.dashboard'))->assertOk()->assertSee('still using a temporary password');
     }
 
     public function test_welcome_can_set_a_password_which_ends_the_reminder(): void
@@ -102,10 +100,10 @@ class OnboardingTest extends TestCase
         $user->refresh();
         $this->assertTrue(Hash::check('my-own-password', $user->password));
         $this->assertNotNull($user->password_changed_at);
-        $this->get(route('portal.dashboard'))->assertOk()->assertDontSee('still using the password we emailed you');
+        $this->get(route('portal.dashboard'))->assertOk()->assertDontSee('still using a temporary password');
 
         // Afterwards the guide is read-only: no password form, so a borrowed session cannot change it there.
-        $this->get(route('portal.welcome'))->assertOk()->assertSee('Your portal guide')->assertDontSee('Choose your own password');
+        $this->get(route('portal.welcome'))->assertOk()->assertSee('Portal guide')->assertDontSee('Welcome, Ann.')->assertDontSee('Choose your own password');
         $this->post(route('portal.welcome.complete'), ['password' => 'hijacked-password', 'password_confirmation' => 'hijacked-password']);
         $this->assertTrue(Hash::check('my-own-password', $user->fresh()->password));
     }
@@ -140,10 +138,15 @@ class OnboardingTest extends TestCase
     }
 
     /** The password as it appeared in the email sent to this user. */
-    private function emailedPassword(User $user): string
+    /** Follow the "Set your password" link from the last email to this user and choose $password. */
+    private function setPasswordFromEmail(User $user, string $password): void
     {
-        $lines = Notification::sent($user, PortalMail::class)->last()->lines;
-
-        return substr(collect($lines)->first(fn ($l) => str_starts_with($l, 'Password: ')), strlen('Password: '));
+        $url = Notification::sent($user, PortalMail::class)->last()->actionUrl;
+        parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
+        $token = basename((string) parse_url($url, PHP_URL_PATH));
+        auth()->logout();
+        $this->get($url)->assertOk()->assertSee('Set your password');
+        $this->post(route('password.invite.update'), ['token' => $token, 'email' => $query['email'], 'password' => $password, 'password_confirmation' => $password])
+            ->assertRedirect(route('login'))->assertSessionHas('status');
     }
 }

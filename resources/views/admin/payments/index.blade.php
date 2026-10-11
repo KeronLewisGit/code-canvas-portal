@@ -3,6 +3,7 @@
         <x-slot:actions><a href="{{ route('admin.payments.create') }}" class="btn btn-primary">Record a payment</a></x-slot:actions>
     </x-page>
     <form class="mb-6 flex flex-wrap gap-2" aria-label="Filters" data-autosubmit>
+        <input name="q" type="search" aria-label="Search payments" value="{{ request('q') }}" placeholder="Search reference or client" class="input max-w-xs">
         <select name="status" aria-label="Status" class="input max-w-48"><option value="">Any status</option>@foreach (config('company.payment_statuses') as $k => $v)<option value="{{ $k }}" @selected(request('status') === $k)>{{ $v }}</option>@endforeach</select>
         <select name="client" aria-label="Client" class="input max-w-52"><option value="">Any client</option>@foreach ($clients as $c)<option value="{{ $c->id }}" @selected((int) request('client') === $c->id)>{{ $c->company }}</option>@endforeach</select>
         <button class="sr-only focus:not-sr-only btn btn-light">Apply filters</button>
@@ -18,7 +19,7 @@
                 <td><x-badge :status="$p->status" /></td>
                 <td class="num font-semibold">{{ money($p->amount, $p->currency) }}</td>
                 <td class="num"><a href="{{ route('admin.payments.show', $p) }}" class="btn btn-light btn-sm">{{ $p->status === 'pending' ? 'Review' : 'View' }}</a></td>
-            </tr>@empty<tr><td colspan="8"><x-empty>No payments yet. Clients submit them from their portal, or record one yourself.</x-empty></td></tr>@endforelse
+            </tr>@empty<tr><td colspan="8"><x-empty>{{ request()->anyFilled(['q', 'status', 'client']) ? 'Nothing matches these filters.' : 'No payments yet. Clients submit them from their portal, or record one yourself.' }}</x-empty></td></tr>@endforelse
         </tbody></table>
     </div>
     <div class="mt-4">{{ $payments->links() }}</div>

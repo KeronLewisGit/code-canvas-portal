@@ -9,6 +9,7 @@ use App\Models\Contract;
 use App\Models\Invoice;
 use App\Services\ContractInvoicing;
 use App\Services\Notifier;
+use App\Support\Audit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +27,7 @@ class InvoiceController extends Controller
             ->when($request->status === 'overdue', fn ($q) => $q->whereIn('status', ['sent', 'partial'])->whereDate('due_date', '<', now()->toDateString()))
             ->when($request->filled('status') && $request->status !== 'overdue', fn ($q) => $q->where('status', $request->status))
             ->when($request->filled('client'), fn ($q) => $q->where('client_id', $request->client))
+            ->when($request->filled('q'), fn ($q) => $q->where(fn ($w) => $w->where('title', 'like', '%'.$request->q.'%')->orWhere('reference', 'like', '%'.$request->q.'%')))
             ->latest('issue_date')->latest('id')->paginate(25)->withQueryString();
 
         return view('admin.invoices.index', ['invoices' => $invoices, 'clients' => Client::orderBy('company')->get(['id', 'company'])]);
@@ -79,15 +81,26 @@ class InvoiceController extends Controller
 
     public function edit(Invoice $invoice): View
     {
+        abort_if(in_array($invoice->status, ['paid', 'cancelled']), 403, 'Paid and cancelled invoices are part of the record and cannot be edited. Create a new invoice instead.');
+
         return view('admin.invoices.form', $this->formData($invoice, $invoice->items));
     }
 
     public function update(Request $request, Invoice $invoice): RedirectResponse
     {
+        abort_if(in_array($invoice->status, ['paid', 'cancelled']), 403, 'Paid and cancelled invoices are part of the record and cannot be edited. Create a new invoice instead.');
         $data = $this->validated($request);
         $items = $this->itemsFrom($request);
-        if ($invoice->payments()->exists() && ((int) $data['client_id'] !== $invoice->client_id || (int) ($data['contract_id'] ?? 0) !== (int) $invoice->contract_id)) {
-            throw ValidationException::withMessages(['client_id' => 'The client and contract cannot change once payments are recorded against this invoice.']);
+        if ($invoice->payments()->exists()) {
+            // Payments are recorded in the invoice's currency and against its client and contract, so those are fixed now.
+            $errors = array_filter([
+                'client_id' => (int) $data['client_id'] !== $invoice->client_id || (int) ($data['contract_id'] ?? 0) !== (int) $invoice->contract_id ? 'The client and contract cannot change once payments are recorded against this invoice.' : null,
+                'currency' => $data['currency'] !== $invoice->currency ? 'The currency cannot change once payments are recorded in '.$invoice->currency.'.' : null,
+                'status' => $data['status'] === 'draft' && $invoice->status !== 'draft' ? 'This invoice has payments, so it cannot go back to draft.' : null,
+            ]);
+            if ($errors) {
+                throw ValidationException::withMessages($errors);
+            }
         }
         $wasSent = $invoice->sent_at !== null;
         DB::transaction(function () use ($invoice, $data, $items) {
@@ -122,10 +135,13 @@ class InvoiceController extends Controller
         if ($hasPayments && in_array($status, ['draft', 'cancelled'])) {
             return back()->withErrors(['status' => 'This invoice has payments recorded against it, so it cannot go back to draft or be cancelled. Reject or delete the payments first.']);
         }
-        if ($status === 'paid' && $hasPayments && $invoice->paidAmount() + 0.005 < (float) $invoice->total) {
-            return back()->withErrors(['status' => 'Only '.money($invoice->paidAmount(), $invoice->currency).' of '.money($invoice->total, $invoice->currency).' is verified. Record the rest as a payment, or mark it paid once the linked payments cover it.']);
-        }
         $wasSent = $invoice->sent_at !== null;
+        // Marking paid by hand records the remaining balance as a verified payment, so the contract balance, reports
+        // and the client's payment history all agree that it was paid.
+        if ($status === 'paid' && ($owed = $invoice->balance()) > 0) {
+            $payment = $invoice->payments()->create(['client_id' => $invoice->client_id, 'contract_id' => $invoice->contract_id, 'amount' => $owed, 'currency' => $invoice->currency, 'method' => 'other', 'paid_on' => now(), 'note' => 'Marked paid by '.$request->user()->name.'.', 'status' => 'verified', 'submitted_by' => $request->user()->id, 'verified_by' => $request->user()->id, 'verified_at' => now()]);
+            Audit::log($payment, 'recorded', ['amount' => $owed, 'method' => 'other', 'via' => 'invoice marked paid']);
+        }
         $invoice->forceFill(['status' => $status, 'sent_at' => in_array($status, ['sent', 'paid']) ? ($invoice->sent_at ?? now()) : $invoice->sent_at, 'paid_at' => $status === 'paid' ? ($invoice->paid_at ?? now()) : null])->save();
         if ($status === 'sent') {
             $invoice->refreshPaymentStatus();
@@ -152,7 +168,14 @@ class InvoiceController extends Controller
 
     private function validated(Request $request): array
     {
-        return $request->validate($this->documentRules($request, ['due_date' => ['nullable', 'date', 'after_or_equal:issue_date'], 'status' => ['required', 'in:draft,sent'], 'kind' => ['sometimes', 'in:'.implode(',', array_keys(ContractInvoicing::KINDS))]]), $this->documentMessages());
+        $data = $request->validate($this->documentRules($request, ['due_date' => ['nullable', 'date', 'after_or_equal:issue_date'], 'status' => ['required', 'in:draft,sent'], 'kind' => ['sometimes', 'in:'.implode(',', array_keys(ContractInvoicing::KINDS))]]), $this->documentMessages());
+        // An invoice on a contract bills that contract, so it must be in the contract's currency.
+        $contract = ! empty($data['contract_id']) ? Contract::find($data['contract_id']) : null;
+        if ($contract && $contract->currency !== $data['currency']) {
+            throw ValidationException::withMessages(['currency' => 'Contract '.$contract->reference.' is in '.$contract->currency.'. Invoice it in the same currency.']);
+        }
+
+        return $data;
     }
 
     private function formData(Invoice $invoice, iterable $items): array

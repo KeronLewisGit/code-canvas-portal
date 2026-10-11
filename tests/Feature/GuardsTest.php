@@ -84,18 +84,23 @@ class GuardsTest extends TestCase
         $this->actingAs($this->admin)->delete(route('admin.invoices.destroy', $invoice))->assertForbidden();
         $this->assertSame('paid', $invoice->fresh()->status);
 
-        // Nor can it be handed to a different client while the payments still point at the old one.
-        $this->actingAs($this->admin)->patch(route('admin.invoices.update', $invoice), $this->invoiceInput(['client_id' => $this->other->id, 'status' => 'sent']))->assertSessionHasErrors('client_id');
+        // Nor can it be edited at all once paid (so never handed to a different client), even straight from a URL.
+        $this->actingAs($this->admin)->patch(route('admin.invoices.update', $invoice), $this->invoiceInput(['client_id' => $this->other->id, 'status' => 'sent']))->assertForbidden();
         $this->assertSame($this->client->id, $invoice->fresh()->client_id);
     }
 
-    public function test_marking_a_partly_paid_invoice_paid_by_hand_is_refused(): void
+    public function test_marking_a_partly_paid_invoice_paid_by_hand_records_the_rest_as_a_payment(): void
     {
         $invoice = $this->invoice();
         Payment::create(['client_id' => $this->client->id, 'invoice_id' => $invoice->id, 'amount' => 100, 'currency' => 'TTD', 'method' => 'cash', 'paid_on' => now(), 'status' => 'verified']);
         $invoice->refreshPaymentStatus();
-        $this->actingAs($this->admin)->patch(route('admin.invoices.status', $invoice), ['status' => 'paid'])->assertSessionHasErrors('status');
-        $this->assertSame('partial', $invoice->fresh()->status);
+
+        $this->actingAs($this->admin)->patch(route('admin.invoices.status', $invoice), ['status' => 'paid'])->assertSessionHasNoErrors();
+
+        $this->assertSame('paid', $invoice->fresh()->status);
+        $settled = Payment::where('method', 'other')->sole();
+        $this->assertEquals(400, (float) $settled->amount);
+        $this->assertSame('verified', $settled->status);
     }
 
     public function test_overdue_filter_lists_sent_invoices_past_their_due_date(): void

@@ -42,7 +42,7 @@
     h1, h2, h3 { @apply font-display font-semibold tracking-tight; }
     a { @apply transition; }
     /* Keyboard users always get a visible focus ring (WCAG 2.4.7 / 2.4.11). */
-    :focus-visible { outline: 3px solid var(--color-brand-400); outline-offset: 2px; border-radius: 4px; }
+    :focus-visible { outline: 3px solid var(--color-brand-500); outline-offset: 2px; border-radius: 4px; }
     input[type='checkbox'], input[type='radio'] { accent-color: var(--color-brand-500); }
     [x-cloak] { display: none !important; }
     @media (prefers-reduced-motion: reduce) {
@@ -56,7 +56,7 @@
     .h-page { @apply text-2xl font-semibold tracking-tight sm:text-3xl; }
 
     /* Buttons: 44px minimum target (WCAG 2.5.5 / Material), one primary per view. */
-    .btn { @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-semibold transition focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-200 disabled:cursor-not-allowed disabled:opacity-60; }
+    .btn { @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60; }
     .btn-primary { @apply bg-brand-500 text-white hover:bg-brand-600 active:bg-brand-700; }
     .btn-light { @apply border border-edge bg-white text-ink hover:bg-paper; }
     .btn-danger { @apply bg-red-700 text-white hover:bg-red-800; }
@@ -64,7 +64,7 @@
     .btn-link-danger { @apply inline-flex min-h-9 cursor-pointer items-center text-sm font-semibold text-red-700 underline-offset-2 hover:underline; }
 
     .label { @apply mb-1.5 block text-sm font-semibold text-ink; }
-    .input { @apply block min-h-11 w-full rounded-xl border border-edge bg-white px-3.5 py-2.5 text-base text-ink placeholder:text-placeholder focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus:outline-none disabled:text-muted sm:text-sm; }
+    .input { @apply block min-h-11 w-full rounded-xl border border-edge bg-white px-3.5 py-2.5 text-base text-ink placeholder:text-placeholder focus:border-brand-500 focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:text-muted sm:text-sm; }
     /* Native selects ignore box-shadow in Safari, so they get the same border plus our own arrow. */
     select.input { @apply cursor-pointer appearance-none bg-no-repeat pr-10; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%234e4b66' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E"); background-position: right 0.75rem center; background-size: 1.1rem; }
     select.input:disabled { @apply cursor-not-allowed; }

@@ -26,6 +26,7 @@ class QuotationController extends Controller
             ->when($request->status === 'expired', fn ($q) => $q->where(fn ($w) => $w->where('status', 'expired')->orWhere(fn ($s) => $s->where('status', 'sent')->whereDate('valid_until', '<', now()->toDateString()))))
             ->when($request->filled('status') && $request->status !== 'expired', fn ($q) => $q->where('status', $request->status))
             ->when($request->filled('client'), fn ($q) => $q->where('client_id', $request->client))
+            ->when($request->filled('q'), fn ($q) => $q->where(fn ($w) => $w->where('title', 'like', '%'.$request->q.'%')->orWhere('reference', 'like', '%'.$request->q.'%')))
             ->latest('issue_date')->latest('id')->paginate(25)->withQueryString();
 
         return view('admin.quotations.index', ['quotations' => $quotations, 'clients' => Client::orderBy('company')->get(['id', 'company'])]);

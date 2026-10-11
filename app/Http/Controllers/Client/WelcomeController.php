@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
+use App\Services\PortalAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rules\Password as PasswordRule;
@@ -29,6 +30,7 @@ class WelcomeController extends Controller
         $user->save();
         if ($setPassword) {
             $request->session()->regenerate();
+            PortalAccess::signOutEverywhere($user, keepSessionId: $request->session()->getId());
         }
 
         return redirect()->intended(route('portal.dashboard'))->with('saved', $setPassword ? 'Password saved. You are all set.' : 'You are all set. Welcome aboard.');

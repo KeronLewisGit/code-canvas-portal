@@ -15,6 +15,9 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        if (app()->isProduction()) {
+            throw new \RuntimeException('The demo seeder creates logins with the password "password" and must never run on production. Use php artisan portal:admin instead.');
+        }
         $admin = User::updateOrCreate(['email' => config('company.email')], ['name' => 'Keron Lewis', 'password' => 'password', 'role' => 'admin']);
 
         $client = Client::updateOrCreate(['email' => 'owner@allthingstobago.com'], ['company' => 'All Things Tobago', 'contact_name' => 'Tobago Crew', 'phone' => '(868) 555-0100', 'address' => 'Crown Point, Tobago', 'website' => 'https://allthingstobago.com', 'notes' => 'Found via Instagram. Wants bookings live before the December season.', 'disclosure_consent_at' => now()->subDays(10)]);

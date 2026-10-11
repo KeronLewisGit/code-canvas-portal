@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Contract;
 use App\Models\User;
 use App\Support\Audit;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use InvalidArgumentException;
@@ -110,9 +111,9 @@ class ContractLifecycle
     {
         $contract->refresh();
         $start = ($contract->end_date ?? now())->copy()->addDay();
-        $end = $contract->end_date ? $start->copy()->addDays($contract->start_date->diffInDays($contract->end_date)) : null;
         $renewal = Contract::create(array_merge($contract->materialSnapshot(), [
-            'client_id' => $contract->client_id, 'start_date' => $start, 'end_date' => $end, 'status' => 'draft', 'renewal_of_id' => $contract->id, 'confidential' => $contract->confidential,
+            'client_id' => $contract->client_id, 'start_date' => $start, 'end_date' => self::renewedEnd($contract, $start), 'status' => 'draft', 'renewal_of_id' => $contract->id, 'confidential' => $contract->confidential,
+            'deposit_percent' => $contract->deposit_percent,
         ]));
         Audit::log($contract, 'renewed', ['renewal' => $renewal->reference]);
         Audit::log($renewal, 'created', ['renewal_of' => $contract->reference]);
@@ -121,6 +122,23 @@ class ContractLifecycle
     }
 
     /** Called by the scheduler: active contracts past their end date become expired (or renew themselves). */
+    /**
+     * The renewal runs for the same term. A term of whole months (1 Jan – 31 Dec) stays whole months, so a leap
+     * year never shifts it by a day; any other term is copied in days.
+     */
+    private static function renewedEnd(Contract $contract, Carbon $start): ?Carbon
+    {
+        if (! $contract->end_date) {
+            return null;
+        }
+        $months = (int) round($contract->start_date->diffInMonths($contract->end_date->copy()->addDay()));
+        if ($months > 0 && $contract->start_date->copy()->addMonthsNoOverflow($months)->subDay()->isSameDay($contract->end_date)) {
+            return $start->copy()->addMonthsNoOverflow($months)->subDay();
+        }
+
+        return $start->copy()->addDays((int) $contract->start_date->diffInDays($contract->end_date));
+    }
+
     public function expireDue(): int
     {
         $n = 0;
@@ -131,11 +149,21 @@ class ContractLifecycle
                 if (! $c || $c->status !== 'active') {
                     continue;
                 }
-                if ($c->auto_renew && $c->renewals()->doesntExist()) {
-                    $renewal = $this->renew($c);
-                    $this->transition($renewal, 'activate');
+                // All or nothing: a failure never leaves a renewal created while the old contract stays active.
+                $renewal = DB::transaction(function () use ($c) {
+                    $renewal = null;
+                    if ($c->auto_renew && $c->renewals()->doesntExist()) {
+                        $renewal = $this->renew($c);
+                        $this->transition($renewal, 'activate');
+                    }
+                    $this->transition($c, 'expire');
+
+                    return $renewal;
+                });
+                // An automatic renewal continues under the signed agreement, so it is billed like a newly signed contract.
+                if ($renewal && ($invoice = app(ContractInvoicing::class)->issueFirstInvoice($renewal))) {
+                    app(Notifier::class)->invoiceSent($invoice->load('client.users'));
                 }
-                $this->transition($c, 'expire');
                 $n++;
             } catch (\Throwable $e) {
                 report($e); // one bad contract must not stop the rest of the batch

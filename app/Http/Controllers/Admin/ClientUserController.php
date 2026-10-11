@@ -23,7 +23,7 @@ class ClientUserController extends Controller
         ]);
         $result = $access->createLogin($client, $data['name'], $data['email'], $data['password'] ?? null, $request->boolean('send_email'));
 
-        return back()->with('saved', $result['emailed'] ? 'Portal login created and emailed to '.$result['user']->email.'.' : 'Portal login created.')
+        return back()->with('saved', $result['emailed'] ? 'Portal login created. A link to set their password was emailed to '.$result['user']->email.'.' : 'Portal login created.')
             ->with('credentials', PortalAccess::banner($result));
     }
 
@@ -32,7 +32,7 @@ class ClientUserController extends Controller
         abort_unless($user->client_id === $client->id, 404);
         $result = $access->resetPassword($user, $request->boolean('send_email'));
 
-        return back()->with('saved', $result['emailed'] ? 'Password reset and emailed to '.$user->email.'.' : 'Password reset.')
+        return back()->with('saved', $result['emailed'] ? 'A link to choose a new password was emailed to '.$user->email.'.' : 'Password reset. Pass the new one on to the client.')
             ->with('credentials', PortalAccess::banner($result));
     }
 

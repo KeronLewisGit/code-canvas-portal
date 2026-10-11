@@ -11,13 +11,13 @@
                 <h2 class="text-lg font-bold">Your portal is ready</h2>
                 <p class="mt-1 text-sm text-muted">Nothing needs your attention yet. When we send you a quotation, contract or invoice it will appear here, and we will email you at {{ auth()->user()->email }}.</p>
             </div>
-            <a href="{{ route('portal.welcome') }}" class="btn btn-light">How the portal works</a>
+            <a href="{{ route('portal.welcome') }}" class="btn btn-light">Portal guide</a>
         </section>
     @else
     <div class="grid gap-4 sm:grid-cols-3">
         <x-stat label="Active contracts" :value="$contracts->filter->isLive()->count()" :sub="$contracts->count().' in total'" />
-        <x-stat label="Balance outstanding" :value="money($outstanding)" sub="Verified payments deducted" />
-        <x-stat label="Payments being verified" :value="$pendingPayments->count()" :sub="money($pendingPayments->sum('amount'))" />
+        <x-stat label="Due now" :value="money_by_currency($dueNow)" :sub="array_sum($remaining) > 0 ? money_by_currency($remaining).' more on your contracts, billed later' : 'On invoices we have sent you'" />
+        <x-stat label="Payments being verified" :value="$pendingPayments->count()" :sub="money_by_currency(sum_by_currency($pendingPayments, fn ($p) => $p->amount))" />
     </div>
     <section class="card mt-6" aria-labelledby="attention-heading">
         <h2 id="attention-heading" class="text-lg font-bold">Needs your attention</h2>

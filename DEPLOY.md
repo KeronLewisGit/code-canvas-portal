@@ -11,7 +11,9 @@ document root set to that subdomain's `public_html`. The MySQL database and user
 
 1. **PHP**: Websites → PHP configuration → **8.3** or **8.4**, with `pdo_mysql`, `mbstring`, `fileinfo`, `gd` enabled (default).
 2. **MySQL**: Databases → create a database and user; note the three values.
-3. **Email**: use the `mxadmin@codecanvastt.com` mailbox (or create one) and put its SMTP password in `.env`. The portal emails clients when quotations, invoices and contracts are sent, when payments are verified, and for reminders; you receive a copy of each and a note when a client submits a payment, signs, or answers a quotation.
+3. **Email**: mail goes out through **Zoho** (smtppro.zoho.com:465), which codecanvastt.com's SPF and DKIM records
+   already authorise, so messages pass SPF, DKIM and DMARC and stay out of junk. It needs a paid Zoho plan (the free
+   plan blocks SMTP) and a Zoho app-specific password in `MAIL_PASSWORD`. `MAIL_FROM_ADDRESS` must be that Zoho mailbox. The portal emails clients when quotations, invoices and contracts are sent, when payments are verified, and for reminders; you receive a copy of each and a note when a client submits a payment, signs, or answers a quotation.
 4. **SSL**: Security → SSL → active for the subdomain.
 
 ## 2a. Upload the release zip (no Composer needed on the server)
@@ -19,6 +21,9 @@ document root set to that subdomain's `public_html`. The MySQL database and user
 `scripts/build-release.sh` builds `release/portal.codecanvastt.com.zip` on your machine: production-only
 `vendor/`, built assets, and a `.env` that already has the domain, database name and user, and a
 fresh `APP_KEY`. Only two values are left blank: `DB_PASSWORD` and `MAIL_PASSWORD`.
+
+This zip is for the **first install only**: its `.env` has a new `APP_KEY`, and uploading it over a live site
+signs everyone out and breaks anything already encrypted. Update a live site with `scripts/deploy.sh` (below).
 
 1. hPanel → File Manager → the subdomain's `public_html` (empty it first if it has a placeholder
    `default.php`). Upload the zip, right-click → Extract, then delete the zip.
@@ -50,7 +55,7 @@ php artisan optimize
 Then add one cron job in hPanel → Advanced → Cron Jobs (every minute):
 
 ```
-* * * * * cd ~/public_html && php artisan schedule:run >> /dev/null 2>&1
+* * * * * cd ~/public_html && php artisan schedule:run >> storage/logs/cron.log 2>&1
 ```
 
 It expires finished contracts nightly, emails you renewals due on Mondays and reminds clients about overdue invoices on Tuesdays, at most once a week per invoice.
@@ -77,8 +82,39 @@ Never run `php artisan db:seed` on production: it creates demo clients with the 
 - Forgot-password sends an email (needs the MAIL_* values).
 - Deactivate the test client afterwards (inactive clients are never emailed).
 
-## Updating later
+## Backups (set up once)
+
+Payment proofs, signatures and signed contracts exist only on the server, so back them up with the database every night.
+Add a second cron job (hPanel → Advanced → Cron Jobs):
+
+```
+30 2 * * * bash ~/public_html/scripts/backup.sh >> ~/backups/backup.log 2>&1
+```
+
+It writes `~/backups/db-<date>.sql.gz` and `~/backups/files-<date>.tgz` (uploads and `.env`), outside `public_html`, and keeps 30 days.
+Download `~/backups` (or sync it to Google Drive) at least weekly, and do one test restore:
 
 ```sh
-cd ~/public_html && git pull && php /usr/local/bin/composer install --no-dev --optimize-autoloader --no-interaction && php artisan migrate --force && php artisan optimize:clear && php artisan optimize
+gunzip < ~/backups/db-YYYY-MM-DD-HHMM.sql.gz | mysql -u u269010508_ccportal -p u269010508_ccportal
+tar -xzf ~/backups/files-YYYY-MM-DD-HHMM.tgz -C ~/public_html
 ```
+
+## Updating later
+
+Push from your Mac, then on the server:
+
+```sh
+bash ~/public_html/scripts/deploy.sh
+```
+
+It puts the site in maintenance mode, records the current version, backs up, pulls the pushed code, installs packages,
+migrates, rebuilds caches and brings the site back up. If an update misbehaves:
+
+```sh
+bash ~/public_html/scripts/rollback.sh
+```
+
+Rollback restores the code only. If the bad update ran migrations, check `php artisan migrate:status` and restore the
+database backup the deploy took if needed.
+
+Uptime: point a free monitor (UptimeRobot or Better Stack) at `https://portal.codecanvastt.com/login`.

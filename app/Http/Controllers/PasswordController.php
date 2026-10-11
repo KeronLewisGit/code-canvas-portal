@@ -2,12 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\PortalAccess;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Password;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password as PasswordRule;
 use Illuminate\View\View;
 
@@ -37,13 +36,35 @@ class PasswordController extends Controller
         $request->validate(['token' => ['required'], 'email' => ['required', 'email'], 'password' => ['required', 'confirmed', PasswordRule::min(10)]]);
 
         $status = Password::reset($request->only('email', 'password', 'password_confirmation', 'token'), function ($user, string $password) {
-            $user->forceFill(['password' => $password, 'remember_token' => Str::random(60), 'password_changed_at' => now()])->save();
+            $user->forceFill(['password' => $password, 'password_changed_at' => now()])->save();
+            PortalAccess::signOutEverywhere($user);
             event(new PasswordReset($user));
         });
 
         return $status === Password::PasswordReset
             ? redirect()->route('login')->with('status', 'Password updated. Sign in with the new one.')
             : back()->withErrors(['email' => __($status)]);
+    }
+
+    /** The "Set your password" link from a welcome or sign-in email. */
+    public function invite(Request $request, string $token): View
+    {
+        return view('auth.reset', ['token' => $token, 'email' => $request->query('email'), 'invite' => true]);
+    }
+
+    public function acceptInvite(Request $request): RedirectResponse
+    {
+        $request->validate(['token' => ['required'], 'email' => ['required', 'email'], 'password' => ['required', 'confirmed', PasswordRule::min(10)]]);
+
+        $status = Password::broker('invites')->reset($request->only('email', 'password', 'password_confirmation', 'token'), function ($user, string $password) {
+            $user->forceFill(['password' => $password, 'password_changed_at' => now()])->save();
+            PortalAccess::signOutEverywhere($user);
+            event(new PasswordReset($user));
+        });
+
+        return $status === Password::PasswordReset
+            ? redirect()->route('login')->with('status', 'Your password is set. Sign in with your email and new password.')
+            : back()->withErrors(['email' => $status === Password::InvalidToken ? 'This link has expired or was already used. Use "Forgot password?" below to get a new one.' : __($status)]);
     }
 
     public function edit(): View
@@ -55,8 +76,8 @@ class PasswordController extends Controller
     {
         $data = $request->validate(['current_password' => ['required', 'current_password'], 'password' => ['required', 'confirmed', PasswordRule::min(10)]]);
         $request->user()->forceFill(['password' => $data['password'], 'password_changed_at' => now()])->save(); // the User model hashes it
-        Auth::logoutOtherDevices($data['password']); // rotates the remember-me token so old "remember me" cookies stop working
         $request->session()->regenerate();
+        PortalAccess::signOutEverywhere($request->user(), keepSessionId: $request->session()->getId()); // every other device is signed out
 
         return back()->with('saved', 'Password changed.');
     }

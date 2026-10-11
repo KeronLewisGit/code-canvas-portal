@@ -6,9 +6,9 @@
     <header class="flex items-start justify-between gap-6">
         <div>
             <p class="doc-title">{{ strtoupper($kind) }}</p>
-            <p class="mt-2 font-semibold">{{ $kind }}# {{ $doc->reference }}</p>
-            @if ($isInvoice)<p class="eyebrow mt-5">Balance due</p><p class="text-xl font-bold">{{ money($doc->balance(), $doc->currency) }} <span class="small muted font-normal">{{ $doc->currency }}</span></p>
-            @else<p class="eyebrow mt-5">Quoted total</p><p class="text-xl font-bold">{{ money($doc->total, $doc->currency) }} <span class="small muted font-normal">{{ $doc->currency }}</span></p>@endif
+            <p class="mt-2 font-semibold">{{ $kind }} no. {{ $doc->reference }}</p>
+            @if ($isInvoice)<p class="eyebrow mt-5">Balance due</p><p class="text-xl font-bold">{{ money($doc->balance(), $doc->currency) }}</p>
+            @else<p class="eyebrow mt-5">Quoted total</p><p class="text-xl font-bold">{{ money($doc->total, $doc->currency) }}</p>@endif
         </div>
         <div class="text-right">
             <x-logo :full="true" class="ml-auto h-20 w-auto" />
@@ -46,7 +46,7 @@
     </table>
 
     <div class="totals mt-3 avoid-break">
-        <div><span class="muted">Sub total</span><span>{{ number_format($doc->subtotal, 2) }}</span></div>
+        <div><span class="muted">Subtotal</span><span>{{ number_format($doc->subtotal, 2) }}</span></div>
         @if ((float) $doc->tax_rate > 0)<div><span class="muted">Tax ({{ rtrim(rtrim(number_format($doc->tax_rate, 2), '0'), '.') }}%)</span><span>{{ number_format($doc->tax_amount, 2) }}</span></div>@endif
         <div class="grand"><span>Total</span><span>{{ money($doc->total, $doc->currency) }}</span></div>
         @if ($isInvoice)
@@ -59,7 +59,7 @@
         @if ($isInvoice)
             <div class="small"><p class="font-semibold">Payment details</p><p class="muted">Bank: {{ $company['bank']['bank_name'] }}<br>Account name: {{ $company['bank']['account_name'] }}<br>Account type: {{ $company['bank']['account_type'] }}<br>Account number: {{ $company['bank']['account_number'] }}@if ($company['bank']['branch'])<br>Branch: {{ $company['bank']['branch'] }}@endif<br>Reference: {{ $doc->reference }}</p><p class="muted mt-2">Cheques payable to {{ $company['bank']['cheque_payable_to'] }}. After paying, submit the confirmation in the client portal.</p></div>
         @else
-            <div class="small"><p class="font-semibold">Next step</p><p class="muted">Accept this quotation in the client portal or reply by email. A contract and deposit invoice follow acceptance.</p></div>
+            <div class="small"><p class="font-semibold">Next step</p><p class="muted">Accept this quotation in the client portal or reply by email. Your contract follows acceptance, ready to sign online.</p></div>
         @endif
         @if ($doc->notes)<div class="small"><p class="font-semibold">Notes</p><p class="muted whitespace-pre-line">{{ $doc->notes }}</p></div>@endif
     </div>

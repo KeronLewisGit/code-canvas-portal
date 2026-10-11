@@ -50,13 +50,13 @@ class ReviewFixesTest extends TestCase
         $this->assertTrue($contract->fresh()->signed_at->equalTo($signedAt), 'time of day survives a date-only form field');
     }
 
-    public function test_manually_paid_invoice_stays_paid_when_edited(): void
+    public function test_a_manually_paid_invoice_is_locked_and_stays_paid(): void
     {
         $invoice = Invoice::create(['client_id' => $this->client->id, 'title' => 'Cash job', 'issue_date' => now(), 'status' => 'sent']);
         $invoice->syncItems([['description' => 'Work', 'quantity' => 1, 'unit_price' => 200]]);
         $this->actingAs($this->admin)->patch(route('admin.invoices.status', $invoice), ['status' => 'paid']);
-        $this->actingAs($this->admin)->patch(route('admin.invoices.update', $invoice), ['client_id' => $this->client->id, 'title' => 'Cash job (edited)', 'issue_date' => now()->format('Y-m-d'), 'currency' => 'TTD', 'status' => 'sent', 'items' => [['description' => 'Work', 'quantity' => 1, 'unit_price' => 200]]])->assertRedirect();
-        $this->assertSame('paid', $invoice->fresh()->status);
+        $this->actingAs($this->admin)->patch(route('admin.invoices.update', $invoice), ['client_id' => $this->client->id, 'title' => 'Cash job (edited)', 'issue_date' => now()->format('Y-m-d'), 'currency' => 'TTD', 'status' => 'sent', 'items' => [['description' => 'Work', 'quantity' => 1, 'unit_price' => 200]]])->assertForbidden();
+        $this->assertSame(['paid', 'Cash job'], [$invoice->fresh()->status, $invoice->fresh()->title]);
     }
 
     public function test_quotation_valid_until_today_can_still_be_accepted_and_invoice_due_today_is_not_overdue(): void

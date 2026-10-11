@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class ContractController extends Controller
@@ -79,6 +80,9 @@ class ContractController extends Controller
     public function update(Request $request, Contract $contract): RedirectResponse
     {
         $data = $this->validated($request);
+        if ($data['currency'] !== $contract->currency && ($contract->payments()->exists() || $contract->invoices()->where('status', '!=', 'cancelled')->exists())) {
+            throw ValidationException::withMessages(['currency' => 'This contract already has invoices or payments in '.$contract->currency.', so its currency cannot change. Cancel it and create a new one if the currency is wrong.']);
+        }
         $reason = $request->input('amendment_reason');
         $wasVersion = $contract->version;
         DB::transaction(function () use ($request, $contract, $data, $reason) {
@@ -125,6 +129,16 @@ class ContractController extends Controller
         });
     }
 
+    /** Draft and sent invoices with no payments at all are cancelled; anything with money against it is kept. */
+    private function voidUnpaidInvoices(Contract $contract): int
+    {
+        $invoices = $contract->invoices()->whereIn('status', ['draft', 'sent'])->whereDoesntHave('payments')->get();
+        $invoices->each(fn (Invoice $i) => $i->forceFill(['status' => 'cancelled'])->save());
+        $invoices->isNotEmpty() && Audit::log($contract, 'invoices_cancelled', ['invoices' => $invoices->pluck('reference')->implode(', ')]);
+
+        return $invoices->count();
+    }
+
     /** A signed, live contract gets its first invoice (deposit, full or first period) and the client is emailed it. */
     private function issueFirstInvoice(Contract $contract): ?Invoice
     {
@@ -160,8 +174,16 @@ class ContractController extends Controller
         $contract = $contract->fresh(['client.users']);
         app(Notifier::class)->contractStatus($contract, $data['action']);
         $invoice = $this->issueFirstInvoice($contract);
+        $note = match ($data['action']) {
+            // A cancelled contract was never in effect: its unpaid invoices are voided so they stop asking for payment.
+            'cancel' => ($voided = $this->voidUnpaidInvoices($contract)) ? ' '.$voided.' unpaid invoice'.($voided === 1 ? ' was' : 's were').' cancelled with it.' : '',
+            // A terminated contract may still owe for work done, so open invoices are left for the admin to decide.
+            'complete' => ! $contract->isRecurring() && ($left = (float) $contract->finance()->remainingValue()) > 0 ? ' '.money($left, $contract->currency).' is not invoiced yet: use "Create balance invoice".' : '',
+            'terminate' => ($open = $contract->invoices()->whereIn('status', ['sent', 'partial'])->pluck('reference'))->isNotEmpty() ? ' Still open: '.$open->implode(', ').'. Cancel any that should no longer be paid.' : '',
+            default => '',
+        };
 
-        return back()->with('saved', 'Contract is now '.strtolower($contract->statusName()).'.'.($invoice ? ' Invoice '.$invoice->reference.' was issued and emailed to the client.' : ''));
+        return back()->with('saved', 'Contract is now '.strtolower($contract->statusName()).'.'.($invoice ? ' Invoice '.$invoice->reference.' was issued and emailed to the client.' : '').$note);
     }
 
     public function remind(Request $request, Contract $contract): RedirectResponse

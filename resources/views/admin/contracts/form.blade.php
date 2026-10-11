@@ -35,7 +35,7 @@
                 <x-field label="Deposit" name="deposit_percent" :hint="'One-off contracts only. When signed, a deposit invoice for this share is issued automatically. Leave blank for the '.rtrim(rtrim(number_format((float) \App\Models\Setting::get('deposit_percent'), 2), '0'), '.').'% default; 0 bills the full price in one invoice.'">
                     <div class="flex items-center gap-2"><input id="deposit_percent" name="deposit_percent" type="number" inputmode="decimal" step="0.01" min="0" max="100" value="{{ old('deposit_percent', $contract->deposit_percent === null ? null : (float) $contract->deposit_percent) }}" class="input max-w-28" aria-describedby="deposit_percent-hint"><span class="text-sm text-muted">%</span></div>
                 </x-field>
-                <p class="text-sm text-muted sm:col-span-2">The standard Code Canvas terms print on page 2 of every contract. Edit them under <a href="{{ route('admin.settings.terms') }}" class="font-semibold text-brand-700 hover:underline">Settings</a>.</p>
+                <p class="text-sm text-muted sm:col-span-2">The standard {{ config('company.short') }} terms print on page 2 of every contract. Edit them under <a href="{{ route('admin.settings.terms') }}" class="font-semibold text-brand-700 hover:underline">Settings</a>.</p>
             </fieldset>
 
             <fieldset class="card grid gap-5 sm:grid-cols-2">
@@ -53,7 +53,7 @@
                 <legend class="sr-only">Signatories and privacy</legend>
                 <div class="sm:col-span-2"><h2 class="text-lg font-bold">4. Signatories and privacy</h2></div>
                 <x-field label="Signs for the client" name="client_signatory" hint="Defaults to the client contact."><input id="client_signatory" name="client_signatory" value="{{ old('client_signatory', $contract->client_signatory) }}" placeholder="{{ $contract->client?->contact_name ?? 'Client contact' }}" class="input"></x-field>
-                <x-field label="Signs for Code Canvas" name="company_signatory"><input id="company_signatory" name="company_signatory" value="{{ old('company_signatory', $contract->company_signatory ?? config('company.signatory')) }}" class="input"></x-field>
+                <x-field :label="'Signs for '.config('company.short')" name="company_signatory"><input id="company_signatory" name="company_signatory" value="{{ old('company_signatory', $contract->company_signatory ?? config('company.signatory')) }}" class="input"></x-field>
                 <label class="flex items-start gap-2 text-sm sm:col-span-2"><input type="checkbox" name="confidential" value="1" @checked(old('confidential', $contract->confidential)) class="mt-1 size-4 rounded"><span><span class="font-semibold">Confidential</span><span class="block text-muted">Never include this contract in bank or lender reports, even if the client has consented to disclosure.</span></span></label>
             </fieldset>
         </div>

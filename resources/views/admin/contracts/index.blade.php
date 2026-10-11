@@ -3,7 +3,7 @@
         <x-slot:actions><a href="{{ route('admin.contracts.create') }}" class="btn btn-primary">New contract</a></x-slot:actions>
     </x-page>
     <form class="mb-6 flex flex-wrap gap-2" aria-label="Filters" data-autosubmit>
-        <input name="q" value="{{ request('q') }}" placeholder="Search title or reference" class="input max-w-xs">
+        <input name="q" type="search" aria-label="Search contracts" value="{{ request('q') }}" placeholder="Search title or reference" class="input max-w-xs">
         <select name="status" aria-label="Status" class="input max-w-40"><option value="">Any status</option>@foreach (config('company.contract_statuses') as $k => $v)<option value="{{ $k }}" @selected(request('status') === $k)>{{ $v }}</option>@endforeach</select>
         <select name="type" aria-label="Type" class="input max-w-48"><option value="">Any type</option>@foreach (config('company.contract_types') as $k => $v)<option value="{{ $k }}" @selected(request('type') === $k)>{{ $v }}</option>@endforeach</select>
         <select name="cycle" aria-label="Billing" class="input max-w-44"><option value="">Any billing</option>@foreach (config('company.billing_cycles') as $k => $v)<option value="{{ $k }}" @selected(request('cycle') === $k)>{{ $v['label'] }}</option>@endforeach</select>

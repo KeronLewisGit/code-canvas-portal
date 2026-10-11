@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Client;
-use App\Services\Notifier;
 use App\Services\PortalAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -52,7 +51,7 @@ class ClientController extends Controller
         if (! $login) {
             return $redirect->with('saved', 'Client added. Create their portal login below when you are ready.');
         }
-        $login['emailed'] = app(Notifier::class)->loginDetails($login['user'], $login['password'], isNew: true);
+        $login['emailed'] = $access->sendPasswordLink($login['user'], isNew: true);
 
         return $redirect->with('saved', $login['emailed'] ? 'Client added and welcome email sent to '.$client->email.'.' : 'Client added with a portal login. The welcome email was not sent, so pass the details on yourself.')
             ->with('credentials', PortalAccess::banner($login));
@@ -72,9 +71,15 @@ class ClientController extends Controller
 
     public function update(Request $request, Client $client): RedirectResponse
     {
-        $client->update($this->validated($request));
+        $data = $this->validated($request);
+        $deactivating = $client->active && ! $data['active'];
+        $client->update($data);
+        // Deactivating takes effect at once on every device, not only at their next sign-in.
+        if ($deactivating) {
+            $client->users->each(fn ($user) => PortalAccess::signOutEverywhere($user));
+        }
 
-        return redirect()->route('admin.clients.show', $client)->with('saved', 'Client updated.');
+        return redirect()->route('admin.clients.show', $client)->with('saved', $deactivating ? 'Client updated and deactivated. Their portal logins were signed out.' : 'Client updated.');
     }
 
     private function validated(Request $request): array
