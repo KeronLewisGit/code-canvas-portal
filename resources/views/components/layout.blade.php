@@ -70,7 +70,7 @@
                     @endif
                     @if (session('credentials'))
                         <div role="status" class="no-print mb-5 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200">
-                            <p class="font-bold">{{ ! empty(session('credentials')['emailed']) ? 'These details were emailed to the client. They are shown here only this once in case you also want to pass them on.' : 'Pass these details to the client. The password is shown only this once.' }}</p>
+                            <p class="font-bold">Pass these details to the client. The password is shown only this once.</p>
                             <p class="mt-1 font-mono">Email: {{ session('credentials')['email'] }}</p>
                             <p class="font-mono">Password: {{ session('credentials')['password'] }}</p>
                             <p class="mt-1 text-xs">Sign in at {{ route('login') }}</p>
