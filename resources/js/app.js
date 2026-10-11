@@ -24,12 +24,15 @@ Alpine.data('clauseList', (initial = []) => ({
 }));
 
 /** Payment form: show the proof upload only for methods that need it. */
-Alpine.data('paymentForm', (method, needsProof = {}, invoice = '', symbol = 'TT$') => ({
+Alpine.data('paymentForm', (method, needsProof = {}, invoice = '', symbol = 'TT$', cards = {}) => ({
     method,
     needsProof,
     invoice,
     symbol,
-    get proofRequired() { return !!this.needsProof[this.method]; },
+    cards,
+    get proofRequired() { return this.method !== 'card' && !!this.needsProof[this.method]; },
+    /** The online card checkout for the chosen invoice ({url, amount}), or null if it cannot be paid by card. */
+    get card() { return this.cards[this.invoice] ?? null; },
     /** Picking an invoice fills in its balance and currency; the contract choice is then not needed. */
     pickInvoice(option) {
         if (option?.dataset.balance) this.$refs.amount.value = option.dataset.balance;

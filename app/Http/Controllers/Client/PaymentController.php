@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Client;
 use App\Http\Controllers\Controller;
 use App\Models\Payment;
 use App\Services\Notifier;
+use App\Services\WiPay;
 use App\Support\LedgerCache;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -40,7 +41,11 @@ class PaymentController extends Controller
         $invoice = $request->filled('invoice') ? $invoices->firstWhere('id', $request->integer('invoice')) : null;
         $contract = $request->filled('contract') ? $contracts->firstWhere('id', $request->integer('contract')) : $invoice?->contract;
 
+        // Invoices that can be paid online now: id => where to start and how much (the invoice's open balance).
+        $cardOptions = $invoices->mapWithKeys(fn ($i) => ($amount = WiPay::payableAmount($i)) ? [$i->id => ['url' => route('portal.invoices.card', $i), 'amount' => money($amount, $i->currency)]] : [])->all();
+
         return view('portal.payments.form', [
+            'cardOptions' => $cardOptions,
             'contracts' => $contracts,
             'invoices' => $invoices,
             'payment' => new Payment(['paid_on' => now(), 'method' => 'bank_transfer', 'contract_id' => $contract?->id, 'invoice_id' => $invoice?->id, 'amount' => $invoice?->balance() ?: $contract?->balance(), 'currency' => $invoice?->currency ?? $contract?->currency ?? config('company.currency.code')]),

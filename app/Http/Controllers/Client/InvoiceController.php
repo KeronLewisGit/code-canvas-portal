@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
+use App\Services\UnreadDocuments;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -17,6 +18,8 @@ class InvoiceController extends Controller
     public function show(Request $request, Invoice $invoice): View
     {
         $this->authorizeView($invoice);
+
+        app(UnreadDocuments::class)->markRead($request->user(), $invoice);
 
         return view('portal.invoices.show', ['invoice' => $invoice->load('items', 'contract', 'payments')]);
     }
