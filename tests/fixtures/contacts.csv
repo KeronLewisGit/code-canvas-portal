@@ -1,0 +1,7 @@
+Display Name,Company Name,Salutation,First Name,Last Name,Phone,Currency Code,Notes,Website,Status,Created By,Bank Account Payment,Portal Enabled,Customer Sub Type,EmailID,MobilePhone,Customer ID,Customer Name,Contact Type
+Bright Bakes,Bright Bakes,,Ada,Lovell,,TTD,,,Active,Code Canvas,FALSE,FALSE,business,Info@BrightBakes.example,,1,Bright Bakes,customer
+Harbour Tours,,Miss.,Jo,Mills,,TTD,,https://harbour.example,Active,Code Canvas,FALSE,FALSE,business,hello@harbour.example,,2,Harbour Tours,customer
+Kim Ramos,,,Kim,Ramos,,TTD,,,Active,Code Canvas,FALSE,FALSE,individual,kim@ramos.example,,3,Kim Ramos,customer
+Ramos Villa,,,Kim,Ramos,,TTD,,,Active,Zoho CRM,FALSE,FALSE,business,kim@ramos.example,,4,Ramos Villa,customer
+No Email Ltd.,No Email Ltd.,,,,'+18685550100,TTD,,,Active,Code Canvas,FALSE,FALSE,business,,,5,No Email Ltd.,customer
+Pat Joseph,Chef Pat Joseph,,,,,TTD,,,Active,Code Canvas,FALSE,FALSE,business,pat@chef.example,18685550111,6,Pat Joseph,customer

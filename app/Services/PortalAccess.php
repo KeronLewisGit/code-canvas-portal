@@ -46,6 +46,14 @@ class PortalAccess
         return ['user' => $user, 'password' => $password, 'emailed' => false];
     }
 
+    /** The new-platform welcome (for clients moved over from the old system), with a 7-day "Set your password" link. */
+    public function sendMigrationWelcome(User $user): bool
+    {
+        $url = route('password.invite', ['token' => Password::broker('invites')->createToken($user), 'email' => $user->email]);
+
+        return app(Notifier::class)->migrationWelcome($user, $url);
+    }
+
     /** Emails a 7-day "Set your password" link. True when the email went out. */
     public function sendPasswordLink(User $user, bool $isNew): bool
     {
