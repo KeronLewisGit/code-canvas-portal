@@ -1,5 +1,12 @@
 <x-layout title="Payment">
-    <x-page :title="money($payment->amount, $payment->currency).' from '.$payment->client->company" :eyebrow="'Payment · '.($payment->methodName())" :back="[route('admin.payments.index'), 'Payments']" />
+    <x-page :title="money($payment->amount, $payment->currency).' from '.$payment->client->company" :eyebrow="'Payment · '.($payment->methodName())" :back="[route('admin.payments.index'), 'Payments']">
+        @if ($payment->receipt_number)
+            <x-slot:actions>
+                <a href="{{ route('documents.receipt', $payment) }}" target="_blank" class="btn btn-light">Receipt {{ $payment->receipt_number }}</a>
+                @if ($payment->status === 'verified')<form method="post" action="{{ route('admin.payments.receipt', $payment) }}" data-confirm="Email receipt {{ $payment->receipt_number }} to the client again?">@csrf<button class="btn btn-light">Email receipt again</button></form>@endif
+            </x-slot:actions>
+        @endif
+    </x-page>
     <div class="grid gap-6 lg:grid-cols-3">
         <section class="card text-sm lg:col-span-2">
             <x-card-header title="Details"><x-badge :status="$payment->status" /></x-card-header>

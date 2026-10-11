@@ -43,6 +43,7 @@ return [
         'contract' => ['pattern' => 'CT-{year}-{seq:3}', 'start' => 1],
         'quotation' => ['pattern' => 'Q-{year}-{seq:3}', 'start' => 1],
         'invoice' => ['pattern' => 'INV-{seq:6}', 'start' => (int) env('INVOICE_START_NUMBER', 63)],
+        'receipt' => ['pattern' => 'RCT-{year}-{seq:3}', 'start' => 1],
     ],
 
     'document_footer' => 'Thank you for your business. Questions: mxadmin@codecanvastt.com · +1 (868) 275-3268',
@@ -118,6 +119,10 @@ return [
     'contract_statuses' => ['draft' => 'Draft', 'approved' => 'Approved', 'active' => 'Active', 'completed' => 'Completed', 'expired' => 'Expired', 'terminated' => 'Terminated', 'cancelled' => 'Cancelled'],
     'contract_live_statuses' => ['active'],                       // count toward recurring revenue and forecasts
     'contract_closed_statuses' => ['completed', 'expired', 'terminated', 'cancelled'],
+    // Contracts waiting for the client's signature: automatic reminders from first_after_days, then every
+    // every_days; at overdue_after_days the reminders stop and admins are told once, so they can follow up,
+    // re-send or withdraw and archive it.
+    'signatures' => ['first_after_days' => 3, 'every_days' => 7, 'overdue_after_days' => 30],
     'renewal_alert_days' => 60,                                   // flag contracts ending within this window
     'usd_rate' => env('USD_RATE', 6.80),                          // TTD per 1 USD, indicative only, printed on reports
     'quotation_statuses' => ['draft' => 'Draft', 'sent' => 'Sent', 'accepted' => 'Accepted', 'declined' => 'Declined', 'expired' => 'Expired'],

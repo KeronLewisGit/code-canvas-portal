@@ -101,6 +101,14 @@ class PaymentController extends Controller
         return back()->with('saved', 'Payment verified. '.($payment->contract ? $payment->contract->reference.' is now '.strtolower(status_label($payment->contract->paymentState())).'.' : ''));
     }
 
+    public function resendReceipt(Payment $payment): RedirectResponse
+    {
+        abort_unless($payment->receipt_number && $payment->status === 'verified', 404);
+        app(Notifier::class)->receipt($payment->load('client.users', 'invoice', 'contract'));
+
+        return back()->with('saved', 'Receipt '.$payment->receipt_number.' emailed to '.$payment->client->company.' again.');
+    }
+
     public function reject(Request $request, Payment $payment): RedirectResponse
     {
         $reason = $request->validate(['rejection_reason' => ['required', 'string', 'max:1000']])['rejection_reason'];

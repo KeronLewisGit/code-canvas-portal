@@ -11,7 +11,7 @@ use InvalidArgumentException;
  */
 class Reference
 {
-    public static function next(string $type, string $model): string
+    public static function next(string $type, string $model, string $column = 'reference'): string
     {
         $cfg = config("company.numbering.{$type}");
         if (! is_array($cfg) || empty($cfg['pattern'])) {
@@ -27,7 +27,7 @@ class Reference
         // Accept numbers longer than the padding so the sequence keeps counting past 999 / 999999.
         $regex = '/^'.preg_quote($prefix, '/').'(\d{'.$pad.',})'.preg_quote($suffix, '/').'$/';
         $max = 0;
-        foreach ($model::query()->where('reference', 'like', $prefix.'%')->lockForUpdate()->pluck('reference') as $ref) {
+        foreach ($model::query()->where($column, 'like', $prefix.'%')->lockForUpdate()->pluck($column) as $ref) {
             if (preg_match($regex, $ref, $mm)) {
                 $max = max($max, (int) $mm[1]);
             }

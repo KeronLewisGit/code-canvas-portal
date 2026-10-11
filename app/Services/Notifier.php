@@ -10,6 +10,7 @@ use App\Models\Quotation;
 use App\Models\User;
 use App\Notifications\PortalMail;
 use App\Support\Audit;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 
@@ -57,28 +58,53 @@ class Notifier
         $this->client($p->client, new PortalMail('We received your payment of '.money($p->amount, $p->currency), ['Thank you. Your '.strtolower($p->methodName()).' payment of '.money($p->amount, $p->currency).' has been submitted and is awaiting verification.', 'We usually confirm within one working day and will email you once it is verified.'], 'View payment', route('portal.payments.show', $p)));
     }
 
+    /**
+     * A rejected payment is explained to the client. A verified one needs no separate email: confirming it issues
+     * the receipt, which is emailed by receipt().
+     */
     public function paymentDecided(Payment $p): void
     {
-        $ok = $p->status === 'verified';
-        $this->client($p->client, new PortalMail($ok ? 'Payment confirmed: '.money($p->amount, $p->currency) : 'We could not verify your payment', $ok
-            ? ['Your '.strtolower($p->methodName()).' payment of '.money($p->amount, $p->currency).' dated '.$p->paid_on->format('j F Y').' has been verified. Thank you.', $p->invoice ? 'Invoice '.$p->invoice->reference.' balance is now '.money($p->invoice->balance(), $p->invoice->currency).'.' : ($p->contract ? 'Contract '.$p->contract->reference.' balance is now '.money($p->contract->balance(), $p->contract->currency).'.' : 'Your balance has been updated.')]
-            : ['Your '.strtolower($p->methodName()).' payment of '.money($p->amount, $p->currency).' dated '.$p->paid_on->format('j F Y').' could not be verified.', 'Reason: '.$p->rejection_reason, 'Please check the details and submit it again, or reply to this email if you think this is a mistake.'],
-            $ok ? 'View payment' : 'Submit again', $ok ? route('portal.payments.show', $p) : route('portal.payments.create', array_filter(['invoice' => $p->invoice_id, 'contract' => $p->contract_id]))));
+        if ($p->status === 'verified') {
+            return;
+        }
+        $this->client($p->client, new PortalMail('We could not verify your payment', [
+            'Your '.strtolower($p->methodName()).' payment of '.money($p->amount, $p->currency).' dated '.$p->paid_on->format('j F Y').' could not be verified.',
+            'Reason: '.$p->rejection_reason,
+            'Please check the details and submit it again, or reply to this email if you think this is a mistake.',
+        ], 'Submit again', route('portal.payments.create', array_filter(['invoice' => $p->invoice_id, 'contract' => $p->contract_id]))));
     }
 
-    /** A card payment confirmed by WiPay: the client gets a receipt, admins a heads-up (nothing to verify). */
+    /** The receipt for a confirmed payment, emailed to the client with a link to view and print it. */
+    public function receipt(Payment $p): void
+    {
+        $for = $p->invoice ? 'invoice '.$p->invoice->reference.' ("'.$p->invoice->title.'")' : ($p->contract ? 'contract '.$p->contract->reference.' ("'.$p->contract->title.'")' : null);
+        $balance = $p->invoice?->balance() ?? $p->contract?->balance();
+        $this->client($p->client, new PortalMail('Receipt '.$p->receipt_number.': '.money($p->amount, $p->currency).' received', array_values(array_filter([
+            'Thank you. We have received your payment of '.money($p->amount, $p->currency).' ('.strtolower($p->methodName()).', '.$p->paid_on->format('j F Y').')'.($for ? ' for '.$for : '').'.',
+            $balance === null ? null : ($balance > 0 ? 'The balance is now '.money($balance, $p->currency).'.' : 'This is now paid in full.'),
+            'Your receipt number is '.$p->receipt_number.'. You can view and print it, and every other receipt, in your portal under Receipts.',
+        ])), 'View and print your receipt', route('documents.receipt', $p)));
+    }
+
+    /** A card payment confirmed by WiPay: admins get a heads-up (nothing to verify); the client gets the receipt. */
     public function cardPaymentReceived(Payment $p): void
     {
-        $balance = $p->invoice?->balance();
-        $this->client($p->client, new PortalMail('Payment received: '.money($p->amount, $p->currency), array_values(array_filter([
-            'Thank you. Your card payment of '.money($p->amount, $p->currency).($p->invoice ? ' for invoice '.$p->invoice->reference : '').' went through.',
-            $p->invoice ? ($balance > 0 ? 'The balance is now '.money($balance, $p->currency).'.' : 'This invoice is now paid in full.') : null,
-            'Transaction reference: '.$p->reference.'.',
-        ])), 'View payment', route('portal.payments.show', $p)));
         $this->admins(new PortalMail('Card payment: '.money($p->amount, $p->currency).' from '.$p->client->company, [
             $p->client->company.' paid '.money($p->amount, $p->currency).' by card through WiPay'.($p->invoice ? ' for '.$p->invoice->reference : '').'.',
-            'It is already confirmed by WiPay, so there is nothing to verify. Reference: '.$p->reference.'.',
+            'It is already confirmed by WiPay, so there is nothing to verify. Receipt '.$p->receipt_number.' was emailed to the client. Reference: '.$p->reference.'.',
         ], 'Open payment', route('admin.payments.show', $p)));
+    }
+
+    /** One email to admins listing contracts that have waited too long for a signature. True when it went out. */
+    public function signaturesOverdue(Collection $contracts): bool
+    {
+        $days = (int) config('company.signatures.overdue_after_days', 30);
+        $count = $contracts->count();
+
+        return $this->admins(new PortalMail($count.' contract'.($count === 1 ? ' has' : 's have').' waited '.$days.'+ days for a signature', [
+            'Automatic reminders have stopped for these. Follow up with the client, send it for signature again, or withdraw and archive it:',
+            ...$contracts->map(fn (Contract $c) => $c->reference.' · '.$c->client->company.' · '.$c->title.' · sent '.$c->sent_for_signature_at->format('j M Y'))->all(),
+        ], 'Open the dashboard', route('admin.dashboard')));
     }
 
     public function creditNoteIssued(Payment $credit): void

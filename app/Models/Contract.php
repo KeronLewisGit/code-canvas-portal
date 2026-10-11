@@ -37,6 +37,7 @@ use Illuminate\Support\Facades\Storage;
  * @property int|null $signed_by
  * @property Carbon|null $sent_for_signature_at
  * @property int $payment_terms_days
+ * @property Carbon|null $archived_at
  * @property string|null $deposit_percent override of the Settings deposit (null = use the setting)
  * @property int|null $notice_period_days
  * @property bool $auto_renew
@@ -53,7 +54,7 @@ use Illuminate\Support\Facades\Storage;
  * @property Carbon|null $reminded_at
  * @property-read Client $client
  */
-#[Fillable(['reference', 'client_id', 'title', 'type', 'start_date', 'end_date', 'amount', 'billing_cycle', 'currency', 'status', 'scope', 'terms', 'file_path', 'standard_terms', 'signed_at', 'signature_path', 'signed_name', 'signed_ip', 'signed_by', 'sent_for_signature_at', 'payment_terms_days', 'notice_period_days', 'auto_renew', 'renewal_of_id', 'client_signatory', 'company_signatory', 'confidential', 'version', 'approved_at', 'approved_by', 'activated_at', 'terminated_at', 'termination_reason', 'reminded_at', 'deposit_percent'])]
+#[Fillable(['reference', 'client_id', 'title', 'type', 'start_date', 'end_date', 'amount', 'billing_cycle', 'currency', 'status', 'scope', 'terms', 'file_path', 'standard_terms', 'signed_at', 'signature_path', 'signed_name', 'signed_ip', 'signed_by', 'sent_for_signature_at', 'payment_terms_days', 'notice_period_days', 'auto_renew', 'renewal_of_id', 'client_signatory', 'company_signatory', 'confidential', 'version', 'approved_at', 'approved_by', 'activated_at', 'terminated_at', 'termination_reason', 'reminded_at', 'deposit_percent', 'archived_at'])]
 class Contract extends Model
 {
     use DateRules, HasReference;
@@ -72,7 +73,7 @@ class Contract extends Model
 
     protected function casts(): array
     {
-        return ['start_date' => 'date', 'end_date' => 'date', 'signed_at' => 'datetime', 'sent_for_signature_at' => 'datetime', 'approved_at' => 'datetime', 'activated_at' => 'datetime', 'terminated_at' => 'datetime', 'reminded_at' => 'datetime', 'auto_renew' => 'boolean', 'confidential' => 'boolean', 'standard_terms' => 'array', 'amount' => 'decimal:2'];
+        return ['archived_at' => 'datetime', 'start_date' => 'date', 'end_date' => 'date', 'signed_at' => 'datetime', 'sent_for_signature_at' => 'datetime', 'approved_at' => 'datetime', 'activated_at' => 'datetime', 'terminated_at' => 'datetime', 'reminded_at' => 'datetime', 'auto_renew' => 'boolean', 'confidential' => 'boolean', 'standard_terms' => 'array', 'amount' => 'decimal:2'];
     }
 
     /** @return BelongsTo<Client, $this> */
@@ -173,12 +174,39 @@ class Contract extends Model
     public function scopeVisibleToClient(Builder $query): Builder
     {
         return $query->where(fn ($q) => $q->whereIn('status', self::IN_EFFECT_STATUSES)
-            ->orWhere(fn ($w) => $w->whereIn('status', ['approved', 'cancelled'])->where(fn ($x) => $x->whereNotNull('sent_for_signature_at')->orWhereNotNull('signed_at'))));
+            ->orWhere(fn ($w) => $w->whereIn('status', ['approved', 'cancelled'])->where(fn ($x) => $x->whereNotNull('sent_for_signature_at')->orWhereNotNull('signed_at'))))
+            // An archived contract the client never signed is withdrawn from their portal; signed ones stay on record.
+            ->where(fn ($q) => $q->whereNull('archived_at')->orWhereNotNull('signed_at'));
     }
 
     public function isVisibleToClient(): bool
     {
-        return in_array($this->status, self::IN_EFFECT_STATUSES) || (in_array($this->status, ['approved', 'cancelled']) && ($this->sent_for_signature_at !== null || $this->signed_at !== null));
+        $issued = in_array($this->status, self::IN_EFFECT_STATUSES) || (in_array($this->status, ['approved', 'cancelled']) && ($this->sent_for_signature_at !== null || $this->signed_at !== null));
+
+        return $issued && ($this->archived_at === null || $this->signed_at !== null);
+    }
+
+    /** @param  Builder<Contract>  $query */
+    public function scopeNotArchived(Builder $query): Builder
+    {
+        return $query->whereNull('archived_at');
+    }
+
+    public function isArchived(): bool
+    {
+        return $this->archived_at !== null;
+    }
+
+    /** Waiting for the client's signature for longer than config('company.signatures.overdue_after_days'). */
+    public function signatureOverdue(): bool
+    {
+        return $this->awaitingSignature() && $this->sent_for_signature_at->lte(now()->subDays((int) config('company.signatures.overdue_after_days', 30)));
+    }
+
+    /** Closed contracts can be archived as they are; unsigned draft/approved ones are withdrawn (cancelled) first. */
+    public function canBeArchived(): bool
+    {
+        return ! $this->isArchived() && (in_array($this->status, config('company.contract_closed_statuses')) || (in_array($this->status, ['draft', 'approved']) && ! $this->isSigned()));
     }
 
     public function scopeLive(Builder $query): Builder
