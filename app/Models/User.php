@@ -9,7 +9,21 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property int $id
+ * @property string $name
+ * @property string $email
+ * @property string $role admin | client
+ * @property int|null $client_id
+ * @property Carbon|null $last_login_at
+ * @property Carbon|null $last_seen_at
+ * @property string|null $last_activity what they last did in the portal, in plain words
+ * @property Carbon|null $welcomed_at
+ * @property Carbon|null $password_changed_at
+ * @property-read Client|null $client
+ */
 #[Fillable(['name', 'email', 'password', 'role', 'client_id'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
@@ -25,6 +39,7 @@ class User extends Authenticatable
             'last_login_at' => 'datetime',
             'welcomed_at' => 'datetime',
             'password_changed_at' => 'datetime',
+            'last_seen_at' => 'datetime',
         ];
     }
 

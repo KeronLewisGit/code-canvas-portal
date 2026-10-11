@@ -63,6 +63,7 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::get('contracts/{contract}/versions/{version}', [Admin\ContractController::class, 'version'])->whereNumber('version')->name('contracts.version');
     Route::get('contracts/{contract}/activity', [Admin\ContractController::class, 'activity'])->name('contracts.activity');
 
+    Route::get('activity', Admin\ActivityController::class)->name('activity');
     Route::get('reports/revenue', Admin\RevenueReportController::class)->name('reports.revenue');
     Route::get('settings', [Admin\SettingsController::class, 'terms'])->name('settings.terms');
     Route::put('settings/terms', [Admin\SettingsController::class, 'update'])->name('settings.terms.update');

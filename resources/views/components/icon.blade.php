@@ -7,6 +7,7 @@
     'quotations' => '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/>',
     'invoices' => '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
     'receipt' => '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="m9 11 2 2 4-4"/>',
+    'activity' => '<path d="M3 12h4l3-8 4 16 3-8h4"/>',
     'payments' => '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/>',
     'pen' => '<path d="M4 20h4l10-10-4-4L4 16z"/><path d="M12 8l4 4"/>',
     'key' => '<circle cx="8" cy="15" r="4"/><path d="M11 12 20 3M17 6l2 2M14 9l2 2"/>',

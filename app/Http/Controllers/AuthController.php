@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\ActivityTracker;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -30,6 +31,7 @@ class AuthController extends Controller
         }
         $request->session()->regenerate();
         $user->forceFill(['last_login_at' => now()])->save();
+        app(ActivityTracker::class)->signedIn($user, $request);
 
         // First sign-in: show the portal guide; any link they followed (e.g. from an email) is kept for afterwards.
         return $user->needsWelcome() ? redirect()->route('portal.welcome') : redirect()->intended(route('home'));
