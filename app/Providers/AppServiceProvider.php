@@ -2,7 +2,7 @@
 
 namespace App\Providers;
 
-use App\Services\UnreadDocuments;
+use App\Services\PendingActions;
 use App\Support\LedgerCache;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -14,7 +14,7 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->scoped(UnreadDocuments::class); // memo lives for one request
+        $this->app->scoped(PendingActions::class); // memo lives for one request
     }
 
     public function boot(): void

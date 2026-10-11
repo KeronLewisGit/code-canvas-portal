@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Client;
 use App\Http\Controllers\Controller;
 use App\Models\Quotation;
 use App\Services\QuotationWorkflow;
-use App\Services\UnreadDocuments;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -21,8 +20,6 @@ class QuotationController extends Controller
     {
         $this->authorizeView($quotation);
 
-        app(UnreadDocuments::class)->markRead($request->user(), $quotation);
-
         return view('portal.quotations.show', ['quotation' => $quotation->load('items', 'contract')]);
     }
 
@@ -33,8 +30,6 @@ class QuotationController extends Controller
         $answer = $request->validate(['answer' => ['required', 'in:accept,decline']])['answer'];
 
         $contract = app(QuotationWorkflow::class)->answer($quotation, $answer === 'accept', $request->user());
-        app(UnreadDocuments::class)->markRead($request->user(), $quotation);
-
         if ($answer === 'decline') {
             return back()->with('saved', 'Quotation declined. Tell us what would make it work.');
         }

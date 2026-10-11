@@ -40,12 +40,14 @@
                 <button type="button" class="btn btn-sm text-white/80 hover:bg-white/10 hover:text-white lg:hidden" @click="open = false" aria-label="Close menu"><x-icon name="close" /></button>
             </div>
             <nav class="mt-2 flex-1 space-y-1 overflow-y-auto px-3" aria-label="Pages">
-                @php($unread = $admin ? [] : app(\App\Services\UnreadDocuments::class)->counts($user))
-                @php($badgeFor = ['portal.contracts.index' => 'contracts', 'portal.quotations.index' => 'quotations', 'portal.invoices.index' => 'invoices'])
+                {{-- Counts of what the client still has to do: answer, sign, pay. They clear only when it is done. --}}
+                @php($pending = $admin ? [] : app(\App\Services\PendingActions::class)->counts($user->client))
+                @php($badgeFor = ['portal.quotations.index' => ['quotations', 'to answer'], 'portal.contracts.index' => ['contracts', 'to sign'], 'portal.payments.index' => ['payments', 'to pay']])
                 @foreach ($nav as [$route, $label, $pattern, $icon])
                     @php($current = request()->routeIs($pattern))
-                    @php($count = $unread[$badgeFor[$route] ?? ''] ?? 0)
-                    <a href="{{ route($route) }}" class="nav-link {{ $current ? 'active' : '' }}" @if ($current) aria-current="page" @endif><x-icon :name="$icon" />{{ $label }}@if ($count > 0)<span class="nav-badge" aria-hidden="true">{{ $count > 9 ? '9+' : $count }}</span><span class="sr-only"> ({{ $count }} new)</span>@endif</a>
+                    @php([$key, $what] = $badgeFor[$route] ?? [null, null])
+                    @php($count = $key ? ($pending[$key] ?? 0) : 0)
+                    <a href="{{ route($route) }}" class="nav-link {{ $current ? 'active' : '' }}" @if ($current) aria-current="page" @endif><x-icon :name="$icon" />{{ $label }}@if ($count > 0)<span class="nav-badge" aria-hidden="true">{{ $count > 9 ? '9+' : $count }}</span><span class="sr-only"> ({{ $count }} {{ $what }})</span>@endif</a>
                 @endforeach
             </nav>
             <div class="border-t border-white/10 p-4 text-sm">
@@ -60,7 +62,7 @@
         <div x-show="open" x-cloak class="fixed inset-0 z-30 bg-ink/50 lg:hidden" @click="open = false" aria-hidden="true"></div>
         <div class="flex min-w-0 flex-1 flex-col">
             <header class="no-print flex h-16 items-center justify-between border-b border-line bg-white px-4 lg:hidden">
-                <button type="button" x-ref="menuButton" class="btn btn-light btn-sm relative" @click="open = true" aria-controls="sidebar" :aria-expanded="open.toString()"><x-icon name="menu" class="size-4" />Menu @if (! $admin && array_sum(app(\App\Services\UnreadDocuments::class)->counts($user)) > 0)<span class="absolute -top-1 -right-1 size-3 rounded-full bg-brand-500 ring-2 ring-white" aria-hidden="true"></span><span class="sr-only"> (new items)</span>@endif</button>
+                <button type="button" x-ref="menuButton" class="btn btn-light btn-sm relative" @click="open = true" aria-controls="sidebar" :aria-expanded="open.toString()"><x-icon name="menu" class="size-4" />Menu @if (! $admin && array_sum(app(\App\Services\PendingActions::class)->counts($user->client)) > 0)<span class="absolute -top-1 -right-1 size-3 rounded-full bg-brand-500 ring-2 ring-white" aria-hidden="true"></span><span class="sr-only"> (things waiting for you)</span>@endif</button>
                 <a href="{{ route('home') }}" class="flex items-center gap-2 text-sm font-semibold" aria-label="{{ $company['name'] }} home"><x-logo class="size-7" />{{ $company['short'] }}</a>
                 <span class="w-20"></span>
             </header>
