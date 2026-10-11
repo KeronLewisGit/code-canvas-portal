@@ -28,8 +28,9 @@
                     @forelse ($client->users as $u)
                         <li class="flex items-center justify-between gap-2 rounded-xl bg-paper px-3 py-2">
                             <span><span class="font-semibold">{{ $u->name }}</span><span class="block text-xs text-muted">{{ $u->email }}</span></span>
-                            <span class="flex gap-1">
-                                <form method="post" action="{{ route('admin.clients.users.update', [$client, $u]) }}" onsubmit="return confirm('Generate a new password for this login? The old one stops working immediately.')">@csrf @method('patch')<button class="btn btn-light btn-sm">New password</button></form>
+                            <span class="flex flex-wrap justify-end gap-1">
+                                <form method="post" action="{{ route('admin.clients.users.update', [$client, $u]) }}" onsubmit="return confirm('Email the login details to this client? A new password is generated and sent, and the old one stops working immediately.')">@csrf @method('patch')<input type="hidden" name="send_email" value="1"><button class="btn btn-light btn-sm">Email login details</button></form>
+                                <form method="post" action="{{ route('admin.clients.users.update', [$client, $u]) }}" onsubmit="return confirm('Generate a new password for this login and show it to you? The old one stops working immediately.')">@csrf @method('patch')<button class="btn btn-light btn-sm">New password</button></form>
                                 <form method="post" action="{{ route('admin.clients.users.destroy', [$client, $u]) }}" onsubmit="return confirm('Remove this login?')">@csrf @method('delete')<button class="btn btn-light btn-sm text-red-700">Remove login</button></form>
                             </span>
                         </li>
@@ -41,6 +42,7 @@
                     <input name="name" value="{{ old('name', $client->contact_name) }}" placeholder="Name" required class="input">
                     <input name="email" type="email" value="{{ old('email', $client->users->isEmpty() ? $client->email : '') }}" placeholder="Email" required class="input">
                     <input name="password" type="text" placeholder="Password (leave blank to generate one)" class="input" autocomplete="off">
+                    <label class="flex items-start gap-2"><input type="checkbox" name="send_email" value="1" @checked(old('send_email', true)) class="mt-0.5 size-4 rounded border-line"><span><span class="font-semibold">Email the login details to the client</span><span class="block text-xs text-muted">Sends the email, password and a sign-in link to this address. Untick to pass them on yourself.</span></span></label>
                     <button class="btn btn-dark btn-sm">Create login</button>
                 </form>
             </section>

@@ -95,6 +95,31 @@ class Notifier
         return $subject;
     }
 
+    /**
+     * Login details for one portal user, sent only to that address (never to the client's other logins).
+     * The plain password exists only in this request, so this is the one chance to email it.
+     */
+    public function loginDetails(User $user, string $password, bool $isNew = true): bool
+    {
+        $mail = new PortalMail(
+            $isNew ? 'Your '.config('company.short').' client portal login' : 'Your '.config('company.short').' portal password was reset',
+            [
+                $isNew ? 'We have set up your access to the '.config('company.name').' client portal, where you can review quotations, sign contracts, view invoices and submit payments.' : 'A new password has been generated for your client portal login. The old one no longer works.',
+                'Email: '.$user->email,
+                'Password: '.$password,
+                'Sign in with the button below. You can change the password at any time after signing in.',
+            ],
+            'Sign in to the portal',
+            route('login'),
+        );
+
+        return $this->deliver(function () use ($user, $mail) {
+            $user->notify($mail);
+
+            return true;
+        }, $mail);
+    }
+
     /** True when the message was handed to the mailer; false when the client has nobody to email or sending failed. */
     private function client(Client $client, PortalMail $mail): bool
     {
