@@ -6,9 +6,13 @@ use App\Http\Controllers\Client as Portal;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\PasswordController;
+use App\Http\Controllers\WiPayReturnController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => auth()->check() ? redirect()->route(auth()->user()->isAdmin() ? 'admin.dashboard' : 'portal.dashboard') : redirect()->route('login'))->name('home');
+
+// WiPay card payment results (browser return and WiPay's notification). Public; verified by hash inside.
+Route::match(['get', 'post'], '/payments/wipay/return', WiPayReturnController::class)->middleware('throttle:60,1')->name('wipay.return');
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -103,6 +107,7 @@ Route::middleware(['auth', 'role:client'])->prefix('portal')->name('portal.')->g
     Route::patch('quotations/{quotation}/answer', [Portal\QuotationController::class, 'answer'])->name('quotations.answer');
     Route::get('invoices', [Portal\InvoiceController::class, 'index'])->name('invoices.index');
     Route::get('invoices/{invoice}', [Portal\InvoiceController::class, 'show'])->name('invoices.show');
+    Route::post('invoices/{invoice}/card', [Portal\CardPaymentController::class, 'start'])->middleware('throttle:6,1')->name('invoices.card');
     Route::get('payments', [Portal\PaymentController::class, 'index'])->name('payments.index');
     Route::get('payments/new', [Portal\PaymentController::class, 'create'])->name('payments.create');
     Route::post('payments', [Portal\PaymentController::class, 'store'])->middleware('throttle:6,1')->name('payments.store');

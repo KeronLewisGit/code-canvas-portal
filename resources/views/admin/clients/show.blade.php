@@ -10,6 +10,9 @@
         </x-slot:actions>
     </x-page>
 
+    @unless ($client->active)
+        <div role="status" class="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200"><span><span class="font-semibold">This client is inactive.</span> They cannot sign in, and no quotations, invoices, contracts or reminders are emailed to them.</span><a href="{{ route('admin.clients.edit', $client) }}" class="btn btn-light btn-sm">Reactivate</a></div>
+    @endunless
     <div class="grid gap-6 lg:grid-cols-3">
         <div class="space-y-6">
             <section class="card text-sm">

@@ -83,4 +83,13 @@ class ClientTypeTest extends TestCase
         $list(['status' => 'inactive'])->assertSee('Rachel Agostini')->assertDontSee('Acme Ltd');
         $list(['type' => 'company', 'status' => 'inactive'])->assertSee('No clients match these filters.');
     }
+
+    public function test_an_inactive_client_page_says_why_they_get_no_emails(): void
+    {
+        $client = Client::create(['company' => 'Acme', 'contact_name' => 'Ann', 'email' => 'ann@acme.test', 'active' => false]);
+
+        $this->actingAs($this->admin)->get(route('admin.clients.show', $client))->assertSee('This client is inactive.')->assertSee('Reactivate');
+        $client->update(['active' => true]);
+        $this->get(route('admin.clients.show', $client))->assertDontSee('This client is inactive.');
+    }
 }
