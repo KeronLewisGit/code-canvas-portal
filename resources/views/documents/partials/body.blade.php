@@ -28,7 +28,7 @@
         <div class="small">
             <p class="muted">{{ $isInvoice ? 'Bill to' : 'Prepared for' }}</p>
             <p class="font-semibold">{{ $doc->client->company }}</p>
-            <p class="muted">{{ $doc->client->contact_name }}@if ($doc->client->address)<br>{{ $doc->client->address }}@endif<br>{{ $doc->client->email }}@if ($doc->client->phone)<br>{{ $doc->client->phone }}@endif</p>
+            <p class="muted">@unless ($doc->client->isIndividual()){{ $doc->client->contact_name }}<br>@endunless @if ($doc->client->address){{ $doc->client->address }}<br>@endif{{ $doc->client->email }}@if ($doc->client->phone)<br>{{ $doc->client->phone }}@endif</p>
         </div>
     </div>
 

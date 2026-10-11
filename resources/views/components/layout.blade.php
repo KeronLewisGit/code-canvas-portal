@@ -47,7 +47,7 @@
             </nav>
             <div class="border-t border-white/10 p-4 text-sm">
                 <p class="truncate font-semibold">{{ $user->name }}</p>
-                <p class="truncate text-xs text-white/70">{{ $admin ? $company['name'] : $user->client?->company }}</p>
+                <p class="truncate text-xs text-white/70">{{ $admin ? $company['name'] : ($user->client?->isIndividual() ? 'Client portal' : $user->client?->company) }}</p>
                 <div class="mt-4 flex items-center gap-1">
                     <a href="{{ route('account') }}" class="btn btn-sm text-white/80 hover:bg-white/10 hover:text-white"><x-icon name="key" class="size-4" />Password</a>
                     <form method="post" action="{{ route('logout') }}">@csrf<button class="btn btn-sm text-white/80 hover:bg-white/10 hover:text-white"><x-icon name="logout" class="size-4" />Sign out</button></form>

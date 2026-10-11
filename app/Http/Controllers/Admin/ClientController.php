@@ -23,7 +23,7 @@ class ClientController extends Controller
 
     public function create(): View
     {
-        return view('admin.clients.form', ['client' => new Client(['active' => true])]);
+        return view('admin.clients.form', ['client' => new Client(['active' => true, 'type' => 'company'])]);
     }
 
     /** Adding a client can also open their portal login and email the welcome, so onboarding is one step. */
@@ -76,7 +76,8 @@ class ClientController extends Controller
     private function validated(Request $request): array
     {
         $data = $request->validate([
-            'company' => ['required', 'string', 'max:120'],
+            'type' => ['nullable', 'in:'.implode(',', array_keys(Client::TYPES))],
+            'company' => ['required_if:type,company', 'nullable', 'string', 'max:120'],
             'contact_name' => ['required', 'string', 'max:120'],
             'email' => ['required', 'email', 'max:160'],
             'phone' => ['nullable', 'string', 'max:40'],
@@ -85,7 +86,12 @@ class ClientController extends Controller
             'notes' => ['nullable', 'string', 'max:5000'],
             'active' => ['nullable', 'boolean'],
             'disclosure_consent' => ['nullable', 'boolean'],
-        ]);
+        ], ['company.required_if' => 'Enter the company or trading name.', 'contact_name.required' => $request->input('type') === 'individual' ? 'Enter the client\'s full name.' : 'Enter the contact person\'s name.']);
+        $data['type'] ??= 'company';
+        // An individual is their own contact, and their name is the client's display name.
+        if ($data['type'] === 'individual') {
+            $data['company'] = $data['contact_name'];
+        }
         $data['active'] = $request->boolean('active');
         $data['disclosure_consent_at'] = $request->boolean('disclosure_consent') ? ($request->route('client')?->disclosure_consent_at ?? now()) : null;
         unset($data['disclosure_consent']);

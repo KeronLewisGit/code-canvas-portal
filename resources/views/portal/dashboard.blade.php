@@ -1,5 +1,5 @@
 <x-layout title="Overview">
-    <x-page :title="'Welcome, '.(auth()->user()->name).'.'" :eyebrow="($client->company)">
+    <x-page :title="'Welcome, '.(auth()->user()->name).'.'" :eyebrow="$client->isIndividual() ? null : $client->company">
         @if ($canPay)
             <x-slot:actions><a href="{{ route('portal.payments.create') }}" class="btn btn-light">Submit a payment</a></x-slot:actions>
         @endif
