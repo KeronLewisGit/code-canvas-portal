@@ -26,13 +26,24 @@
                 <h2 class="text-lg font-bold">Portal logins</h2>
                 <ul class="mt-4 space-y-2">
                     @forelse ($client->users as $u)
-                        <li class="flex items-center justify-between gap-2 rounded-xl bg-paper px-3 py-2">
-                            <span><span class="font-semibold">{{ $u->name }}</span><span class="block text-xs text-muted">{{ $u->email }}</span></span>
-                            <span class="flex flex-wrap justify-end gap-1">
-                                <form method="post" action="{{ route('admin.clients.users.update', [$client, $u]) }}" onsubmit="return confirm('Email the login details to this client? A new password is generated and sent, and the old one stops working immediately.')">@csrf @method('patch')<input type="hidden" name="send_email" value="1"><button class="btn btn-light btn-sm">Email login details</button></form>
-                                <form method="post" action="{{ route('admin.clients.users.update', [$client, $u]) }}" onsubmit="return confirm('Generate a new password for this login and show it to you? The old one stops working immediately.')">@csrf @method('patch')<button class="btn btn-light btn-sm">New password</button></form>
-                                <form method="post" action="{{ route('admin.clients.users.destroy', [$client, $u]) }}" onsubmit="return confirm('Remove this login?')">@csrf @method('delete')<button class="btn btn-light btn-sm text-red-700">Remove login</button></form>
-                            </span>
+                        <li class="rounded-xl bg-paper p-3">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="font-semibold">{{ $u->name }}</p>
+                                    <p class="truncate text-xs text-muted" title="{{ $u->email }}">{{ $u->email }}</p>
+                                </div>
+                                <form method="post" action="{{ route('admin.clients.users.destroy', [$client, $u]) }}" onsubmit="return confirm('Remove this login? This person will no longer be able to sign in.')">@csrf @method('delete')
+                                    <button class="-m-1 grid size-8 shrink-0 cursor-pointer place-items-center rounded-lg text-muted transition hover:bg-red-50 hover:text-red-700 focus-visible:ring-4 focus-visible:ring-red-100 focus:outline-none" title="Remove login" aria-label="Remove login for {{ $u->name }}"><x-icon name="trash" class="size-4" /></button>
+                                </form>
+                            </div>
+                            <div class="mt-3 grid grid-cols-2 gap-2">
+                                <form method="post" action="{{ route('admin.clients.users.update', [$client, $u]) }}" onsubmit="return confirm('Email new login details to this address? A new password is generated and sent, and the old one stops working immediately.')">@csrf @method('patch')<input type="hidden" name="send_email" value="1">
+                                    <button class="btn btn-light btn-sm w-full" title="Generate a new password and email it to the client"><x-icon name="mail" class="size-4" />Email login</button>
+                                </form>
+                                <form method="post" action="{{ route('admin.clients.users.update', [$client, $u]) }}" onsubmit="return confirm('Generate a new password and show it to you only? The old one stops working immediately.')">@csrf @method('patch')
+                                    <button class="btn btn-light btn-sm w-full" title="Generate a new password and show it to you"><x-icon name="key" class="size-4" />Reset password</button>
+                                </form>
+                            </div>
                         </li>
                     @empty<li class="text-muted">No login yet. The client cannot see the portal until you create one.</li>@endforelse
                 </ul>
@@ -70,13 +81,16 @@
                     </tbody></table>
                 </section>
             </div>
-            <section class="card overflow-x-auto">
-                <div class="flex items-center justify-between"><h2 class="text-lg font-bold">Payments</h2><a href="{{ route('admin.payments.create', ['client' => $client->id]) }}" class="btn btn-light btn-sm">Record a payment</a></div>
-                <table class="table mt-4"><thead><tr><th>Date</th><th>Method</th><th>For</th><th>Status</th><th class="num">Amount</th></tr></thead><tbody>
-                    @forelse ($client->payments as $p)<tr><td class="whitespace-nowrap"><a href="{{ route('admin.payments.show', $p) }}" class="font-semibold hover:text-brand-700">{{ $p->paid_on->format('j M Y') }}</a></td><td>{{ $p->methodName() }}</td><td class="text-xs">{{ $p->invoice?->reference ?? $p->contract?->reference ?? '—' }}</td><td><x-badge :status="$p->status" /></td><td class="num font-semibold">{{ money($p->amount, $p->currency) }}</td></tr>
-                    @empty<tr><td colspan="5" class="text-muted">No payments yet.</td></tr>@endforelse
-                </tbody></table>
-            </section>
+            {{-- Payments only make sense once a contract has been invoiced; recorded payments always stay visible. --}}
+            @if ($client->payments->isNotEmpty() || $client->invoices->contains(fn ($i) => $i->contract_id && ! in_array($i->status, ['draft', 'cancelled'])))
+                <section class="card overflow-x-auto">
+                    <div class="flex items-center justify-between"><h2 class="text-lg font-bold">Payments</h2><a href="{{ route('admin.payments.create', ['client' => $client->id]) }}" class="btn btn-light btn-sm">Record a payment</a></div>
+                    <table class="table mt-4"><thead><tr><th>Date</th><th>Method</th><th>For</th><th>Status</th><th class="num">Amount</th></tr></thead><tbody>
+                        @forelse ($client->payments as $p)<tr><td class="whitespace-nowrap"><a href="{{ route('admin.payments.show', $p) }}" class="font-semibold hover:text-brand-700">{{ $p->paid_on->format('j M Y') }}</a></td><td>{{ $p->methodName() }}</td><td class="text-xs">{{ $p->invoice?->reference ?? $p->contract?->reference ?? '—' }}</td><td><x-badge :status="$p->status" /></td><td class="num font-semibold">{{ money($p->amount, $p->currency) }}</td></tr>
+                        @empty<tr><td colspan="5" class="text-muted">No payments yet.</td></tr>@endforelse
+                    </tbody></table>
+                </section>
+            @endif
         </div>
     </div>
 </x-layout>

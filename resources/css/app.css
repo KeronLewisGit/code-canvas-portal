@@ -57,7 +57,7 @@
     .h-page { @apply text-2xl font-semibold tracking-tight sm:text-3xl; }
 
     /* Buttons: 44px minimum target (WCAG 2.5.5 / Material), one primary per view. */
-    .btn { @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-200 disabled:cursor-not-allowed disabled:opacity-60; }
+    .btn { @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-semibold transition focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-200 disabled:cursor-not-allowed disabled:opacity-60; }
     .btn-primary { @apply bg-brand-500 text-white hover:bg-brand-600 active:bg-brand-700; }
     .btn-dark { @apply bg-ink text-white hover:bg-ink-soft; }
     .btn-light { @apply border border-edge bg-white text-ink hover:bg-paper; }
