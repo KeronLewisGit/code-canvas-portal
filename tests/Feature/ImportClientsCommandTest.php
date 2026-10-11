@@ -34,8 +34,8 @@ class ImportClientsCommandTest extends TestCase
     {
         $this->artisan('portal:import-clients', ['file' => $this->csv, '--force' => true])->assertSuccessful();
 
-        // 5 imported: the No Email row has no email and is skipped.
-        $this->assertSame(5, Client::count());
+        // 4 imported: the No Email row has no email, and Ramos Villa shares Kim Ramos's email.
+        $this->assertSame(4, Client::count());
         $this->assertNull(Client::firstWhere('company', 'No Email Ltd.'));
 
         $bright = Client::firstWhere('company', 'Bright Bakes');
@@ -47,9 +47,10 @@ class ImportClientsCommandTest extends TestCase
         $chef = Client::firstWhere('company', 'Chef Pat Joseph');
         $this->assertSame(['Pat Joseph', '18685550111'], [$chef->contact_name, $chef->phone]);
 
-        // Shared email: one login (the first contact), the other client is imported without one.
+        // Shared email: one client, the individual, with a note of the other name; the business row is skipped.
+        $this->assertNull(Client::firstWhere('company', 'Ramos Villa'));
         $this->assertSame(1, $kim->users()->count());
-        $this->assertSame(0, Client::firstWhere('company', 'Ramos Villa')->users()->count());
+        $this->assertSame('Also listed in the old system as: Ramos Villa.', $kim->notes);
         $this->assertSame(4, User::where('role', 'client')->count());
 
         $user = User::firstWhere('email', 'info@brightbakes.example');
@@ -79,7 +80,7 @@ class ImportClientsCommandTest extends TestCase
 
         $this->artisan('portal:import-clients', ['file' => $this->csv, '--force' => true])->expectsOutputToContain('already in the portal')->assertSuccessful();
 
-        $this->assertSame(5, Client::count());
+        $this->assertSame(4, Client::count());
         Notification::assertNothingSent();
     }
 

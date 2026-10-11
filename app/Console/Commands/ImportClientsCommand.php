@@ -43,7 +43,7 @@ class ImportClientsCommand extends Command
         $created = [];
         foreach ($creating as $p) {
             $created[] = DB::transaction(function () use ($p, $access) {
-                $client = Client::create(['type' => $p['type'], 'company' => $p['company'], 'contact_name' => $p['contact'], 'email' => $p['email'], 'phone' => $p['phone'], 'website' => $p['website'], 'active' => $p['active']]);
+                $client = Client::create(['type' => $p['type'], 'company' => $p['company'], 'contact_name' => $p['contact'], 'email' => $p['email'], 'phone' => $p['phone'], 'website' => $p['website'], 'active' => $p['active'], 'notes' => $p['notes']]);
                 $user = $p['login'] ? $access->createLogin($client, $p['contact'], $p['email'], sendEmail: false)['user'] : null;
 
                 return [$client, $user];
@@ -111,9 +111,31 @@ class ImportClientsCommand extends Command
      */
     private function plan(array $rows): array
     {
+        // Contacts sharing an email are one client (e.g. a person also listed under the business they pay for):
+        // keep the individual if there is one, otherwise the first, and note the other names on the kept client.
+        $byEmail = [];
+        foreach ($rows as $i => $r) {
+            $email = strtolower(trim((string) ($r['EmailID'] ?? '')));
+            if ($email !== '') {
+                $byEmail[$email][] = $i;
+            }
+        }
+        $keep = $alsoKnownAs = $duplicateOf = [];
+        foreach ($byEmail as $indexes) {
+            $individual = array_values(array_filter($indexes, fn ($i) => strtolower(trim((string) ($rows[$i]['Customer Sub Type'] ?? ''))) === 'individual'));
+            $kept = $individual[0] ?? $indexes[0];
+            $keep[$kept] = true;
+            foreach ($indexes as $i) {
+                if ($i !== $kept) {
+                    $alsoKnownAs[$kept][] = trim((string) ($rows[$i]['Display Name'] ?? ''));
+                    $duplicateOf[$i] = $kept;
+                }
+            }
+        }
+
         $plan = [];
         $loginEmails = User::pluck('email')->map(fn ($e) => strtolower($e))->flip()->all();
-        foreach ($rows as $r) {
+        foreach ($rows as $index => $r) {
             $v = fn (string $key) => trim((string) ($r[$key] ?? ''));
             $individual = strtolower($v('Customer Sub Type')) === 'individual';
             $person = trim($v('First Name').' '.$v('Last Name'));
@@ -128,6 +150,7 @@ class ImportClientsCommand extends Command
                 'phone' => ltrim($v('Phone') ?: $v('MobilePhone'), "'") ?: null,
                 'website' => filter_var($website, FILTER_VALIDATE_URL) ? $website : null,
                 'active' => strtolower($v('Status') ?: 'active') === 'active',
+                'notes' => isset($alsoKnownAs[$index]) ? 'Also listed in the old system as: '.implode(', ', array_filter($alsoKnownAs[$index])).'.' : null,
                 'create' => false,
                 'login' => false,
             ];
@@ -135,6 +158,7 @@ class ImportClientsCommand extends Command
             $exists = $email !== '' && Client::where('email', $email)->whereRaw('lower(company) = ?', [strtolower($company)])->exists();
             [$p['create'], $p['login'], $p['note']] = match (true) {
                 $company === '' => [false, false, 'Skipped: no name'],
+                isset($duplicateOf[$index]) => [false, false, 'Skipped: same email as '.trim((string) ($rows[$duplicateOf[$index]]['Display Name'] ?? '')).' (one client per email)'],
                 $email === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL) => [false, false, 'Skipped: no valid email (add this client by hand)'],
                 $exists => [false, false, 'Skipped: already in the portal'],
                 isset($loginEmails[$email]) => [true, false, 'Import; no login (this email already has one)'],
