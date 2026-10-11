@@ -133,7 +133,24 @@ return [
         // Adjustments: a credit note reduces what is owed (not money received); a refund is money paid back (negative).
         'credit_note' => ['label' => 'Credit note', 'proof' => false, 'hint' => 'Reduces the amount owed.', 'admin_only' => true, 'adjustment' => true],
         'refund' => ['label' => 'Refund', 'proof' => false, 'hint' => 'Money paid back to the client.', 'admin_only' => true],
+        // Paid online through WiPay; recorded automatically once WiPay confirms it, never chosen on a form.
+        'card' => ['label' => 'Card (WiPay)', 'proof' => false, 'hint' => 'Paid online by card.', 'admin_only' => true],
     ],
+    // Online card payments through WiPay (hosted checkout). Off until WIPAY_ENABLED=true; sandbox credentials are
+    // WiPay's public test ones (account 1234567890, API key 123). The API key is the "Payment API" key in WiPay's
+    // developer settings and is what proves a result really came from WiPay.
+    'wipay' => [
+        'enabled' => (bool) env('WIPAY_ENABLED', false),
+        'environment' => env('WIPAY_ENVIRONMENT', 'sandbox'), // sandbox | live
+        'account_number' => env('WIPAY_ACCOUNT_NUMBER', '1234567890'),
+        'api_key' => env('WIPAY_API_KEY', '123'),
+        'country_code' => env('WIPAY_COUNTRY_CODE', 'TT'),
+        'request_url' => env('WIPAY_REQUEST_URL', 'https://tt.wipayfinancial.com/plugins/payments/request'),
+        'fee_structure' => env('WIPAY_FEE_STRUCTURE', 'merchant_absorb'), // merchant_absorb | customer_pay | split
+        'currencies' => ['TTD', 'USD'],
+        'timeout' => 15,
+    ],
+
     'payment_statuses' => ['pending' => 'Awaiting verification', 'verified' => 'Verified', 'rejected' => 'Rejected'],
 
     'document_terms' => 'Payment due within 14 days of the invoice date unless otherwise agreed. Work begins once the deposit clears.',

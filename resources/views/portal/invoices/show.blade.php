@@ -17,8 +17,16 @@
             </section>
             @if ($invoice->acceptsPayments())
                 @php($bank = config('company.bank'))
+                @if ($cardAmount = \App\Services\WiPay::payableAmount($invoice))
+                    <section class="card text-sm">
+                        <h2 class="text-lg font-bold">Pay by card</h2>
+                        <p class="mt-1 text-muted">Pay the {{ money($cardAmount, $invoice->currency) }} balance now with Visa or Mastercard. You complete the payment on WiPay's secure page and come straight back here.</p>
+                        @error('card')<p class="error mt-2">{{ $message }}</p>@enderror
+                        <form method="post" action="{{ route('portal.invoices.card', $invoice) }}" class="mt-4">@csrf<button class="btn btn-primary w-full">Pay {{ money($cardAmount, $invoice->currency) }} by card</button></form>
+                    </section>
+                @endif
                 <section class="card text-sm">
-                    <h2 class="text-lg font-bold">How to pay</h2>
+                    <h2 class="text-lg font-bold">{{ \App\Services\WiPay::payableAmount($invoice) ? 'Or pay by bank transfer' : 'How to pay' }}</h2>
                     <dl class="mt-3 space-y-2">
                         <div><dt class="eyebrow">Bank</dt><dd class="font-semibold">{{ $bank['bank_name'] }}{{ $bank['branch'] ? ', '.$bank['branch'] : '' }}</dd></div>
                         <div><dt class="eyebrow">Account name</dt><dd class="font-semibold">{{ $bank['account_name'] }}</dd></div>

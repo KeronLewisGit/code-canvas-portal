@@ -18,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias(['role' => EnsureRole::class]);
         $middleware->web(append: [EnsureActiveClient::class, PreviewReadOnly::class]);
         $middleware->append(SecurityHeaders::class);
+        $middleware->validateCsrfTokens(except: ['payments/wipay/return']); // WiPay posts here; results are verified by hash
         $middleware->redirectGuestsTo(fn () => route('login'));
         $middleware->redirectUsersTo(fn () => route('home'));
     })

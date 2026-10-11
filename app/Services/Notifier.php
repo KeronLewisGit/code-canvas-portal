@@ -66,6 +66,21 @@ class Notifier
             $ok ? 'View payment' : 'Submit again', $ok ? route('portal.payments.show', $p) : route('portal.payments.create', array_filter(['invoice' => $p->invoice_id, 'contract' => $p->contract_id]))));
     }
 
+    /** A card payment confirmed by WiPay: the client gets a receipt, admins a heads-up (nothing to verify). */
+    public function cardPaymentReceived(Payment $p): void
+    {
+        $balance = $p->invoice?->balance();
+        $this->client($p->client, new PortalMail('Payment received: '.money($p->amount, $p->currency), array_values(array_filter([
+            'Thank you. Your card payment of '.money($p->amount, $p->currency).($p->invoice ? ' for invoice '.$p->invoice->reference : '').' went through.',
+            $p->invoice ? ($balance > 0 ? 'The balance is now '.money($balance, $p->currency).'.' : 'This invoice is now paid in full.') : null,
+            'Transaction reference: '.$p->reference.'.',
+        ])), 'View payment', route('portal.payments.show', $p)));
+        $this->admins(new PortalMail('Card payment: '.money($p->amount, $p->currency).' from '.$p->client->company, [
+            $p->client->company.' paid '.money($p->amount, $p->currency).' by card through WiPay'.($p->invoice ? ' for '.$p->invoice->reference : '').'.',
+            'It is already confirmed by WiPay, so there is nothing to verify. Reference: '.$p->reference.'.',
+        ], 'Open payment', route('admin.payments.show', $p)));
+    }
+
     public function creditNoteIssued(Payment $credit): void
     {
         $i = $credit->invoice;
