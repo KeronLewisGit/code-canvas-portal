@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Client;
 use App\Models\Contract;
 use App\Models\Invoice;
+use App\Models\Payment;
 use App\Models\Quotation;
 use App\Support\Audit;
 use Illuminate\Http\Request;
@@ -66,5 +67,14 @@ class DocumentController extends Controller
             });
 
         return view('documents.statement', ['client' => $client, 'sections' => $sections]);
+    }
+
+    /** Printable receipt for a confirmed payment (shown as VOID if the payment was later reversed). */
+    public function receipt(Payment $payment): View
+    {
+        $this->authorizeView($payment);
+        abort_if($payment->receipt_number === null, 404);
+
+        return view('documents.receipt', ['payment' => $payment->load('client', 'invoice', 'contract')]);
     }
 }

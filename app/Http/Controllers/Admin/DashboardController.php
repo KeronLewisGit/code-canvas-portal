@@ -30,7 +30,7 @@ class DashboardController extends Controller
             ],
             'pending' => Payment::with('client', 'contract', 'invoice')->pending()->oldest()->get(),
             'ending' => $active->filter(fn (Contract $c) => $c->end_date && $c->end_date->between(now(), now()->addDays(30)))->sortBy('end_date'),
-            'unsigned' => Contract::with('client')->whereIn('status', ['approved', 'active'])->whereNull('signed_at')->orderBy('sent_for_signature_at')->take(5)->get(),
+            'unsigned' => Contract::with('client')->notArchived()->whereIn('status', ['approved', 'active'])->whereNull('signed_at')->orderBy('sent_for_signature_at')->take(5)->get(),
             'overdue' => Invoice::with('client')->whereIn('status', ['sent', 'partial'])->whereDate('due_date', '<', now())->orderBy('due_date')->get(),
             'recentContracts' => Contract::with('client')->latest()->take(6)->get(),
             'recentPayments' => Payment::with('client')->where('status', 'verified')->latest('verified_at')->take(6)->get(),

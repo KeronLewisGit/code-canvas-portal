@@ -23,7 +23,7 @@ class SchedulerTest extends TestCase
         $events = collect(app(Schedule::class)->events());
         $byName = $events->mapWithKeys(fn ($e) => [$e->description => $e]);
 
-        foreach (['App\\Jobs\\ExpireContracts' => '0 1 * * *', 'App\\Jobs\\IssueRecurringInvoices' => '0 6 * * *', 'App\\Jobs\\SendRenewalReminders' => '0 8 * * 1', 'App\\Jobs\\SendPaymentReminders' => '0 9 * * 2', 'prune-expired-cache' => '0 3 * * *'] as $name => $cron) {
+        foreach (['App\\Jobs\\ExpireContracts' => '0 1 * * *', 'App\\Jobs\\IssueRecurringInvoices' => '0 6 * * *', 'App\\Jobs\\SendRenewalReminders' => '0 8 * * 1', 'App\\Jobs\\SendPaymentReminders' => '0 9 * * 2', 'App\\Jobs\\SendSignatureReminders' => '30 9 * * *', 'prune-expired-cache' => '0 3 * * *'] as $name => $cron) {
             $this->assertArrayHasKey($name, $byName->all(), "$name is scheduled");
             $this->assertSame($cron, $byName[$name]->expression);
             $this->assertTrue($byName[$name]->withoutOverlapping, "$name never runs on top of itself");

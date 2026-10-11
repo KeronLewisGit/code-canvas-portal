@@ -31,6 +31,7 @@ class ContractController extends Controller
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
             ->when($request->filled('type'), fn ($q) => $q->where('type', $request->type))
             ->when($request->filled('cycle'), fn ($q) => $q->where('billing_cycle', $request->cycle))
+            ->when($request->query('view') === 'archived', fn ($q) => $q->whereNotNull('archived_at'), fn ($q) => $q->notArchived())
             ->when($request->filled('client'), fn ($q) => $q->where('client_id', $request->client))
             ->when($request->filled('q'), fn ($q) => $q->where(fn ($w) => $w->where('title', 'like', '%'.$request->q.'%')->orWhere('reference', 'like', '%'.$request->q.'%')))
             ->tap(fn ($q) => $this->sorted($q, $request, ['start' => 'start_date', 'amount' => 'amount'], fn ($q) => $q->orderByRaw("case status when 'active' then 0 when 'approved' then 1 when 'draft' then 2 else 3 end")->latest('start_date')))->paginate(25)->withQueryString();
@@ -187,6 +188,39 @@ class ContractController extends Controller
         };
 
         return back()->with('saved', 'Contract is now '.strtolower($contract->statusName()).'.'.($invoice ? ' Invoice '.$invoice->reference.' was issued and emailed to the client.' : '').$note);
+    }
+
+    /**
+     * Archive a contract to take it out of the working lists. A closed one is archived as it is. One that was never
+     * signed (e.g. waiting weeks for a signature) is withdrawn first: cancelled, its unpaid invoices voided, and the
+     * client told if it had been sent to them. It then disappears from their portal; signed contracts stay on record.
+     */
+    public function archive(Request $request, Contract $contract): RedirectResponse
+    {
+        if (! $contract->canBeArchived()) {
+            return back()->withErrors(['action' => $contract->isArchived() ? 'This contract is already archived.' : 'An active contract cannot be archived. Complete or terminate it first.']);
+        }
+        $withdrawn = false;
+        $voided = 0;
+        if (in_array($contract->status, ['draft', 'approved'])) {
+            $wasSent = $contract->isVisibleToClient();
+            $this->lifecycle->transition($contract, 'cancel', $request->user(), ['reason' => 'Withdrawn and archived']);
+            $voided = $this->voidUnpaidInvoices($contract);
+            $wasSent && app(Notifier::class)->contractStatus($contract->fresh(['client.users']), 'cancel');
+            $withdrawn = true;
+        }
+        $contract->forceFill(['archived_at' => now()])->save();
+        Audit::log($contract, 'archived', ['withdrawn' => $withdrawn]);
+
+        return redirect()->route('admin.contracts.index')->with('saved', 'Contract '.$contract->reference.($withdrawn ? ' was withdrawn and archived.' : ' was archived.').($voided ? ' '.$voided.' unpaid invoice'.($voided === 1 ? ' was' : 's were').' cancelled.' : '').' Find it under "Archived".');
+    }
+
+    public function unarchive(Contract $contract): RedirectResponse
+    {
+        $contract->forceFill(['archived_at' => null])->save();
+        Audit::log($contract, 'unarchived');
+
+        return back()->with('saved', 'Contract '.$contract->reference.' is back in your lists.'.($contract->status === 'cancelled' ? ' It is still cancelled; reopen it to use it again.' : ''));
     }
 
     public function remind(Request $request, Contract $contract): RedirectResponse

@@ -19,6 +19,11 @@
         </x-slot:actions>
     </x-page>
 
+    @if ($contract->isArchived())
+        <div role="status" class="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-paper px-4 py-3 text-sm ring-1 ring-line"><span><span class="font-semibold">Archived {{ $contract->archived_at->format('j M Y') }}.</span> Hidden from your lists{{ $contract->signed_at ? '' : ' and from the client\'s portal' }}.</span><form method="post" action="{{ route('admin.contracts.unarchive', $contract) }}">@csrf @method('patch')<button class="btn btn-light btn-sm">Unarchive</button></form></div>
+    @elseif ($contract->signatureOverdue())
+        <div role="status" class="mb-6 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200"><span class="font-semibold">Waiting {{ (int) $contract->sent_for_signature_at->diffInDays(now()) }} days for a signature.</span> Automatic reminders have stopped. Follow up with the client, send it again, or withdraw and archive it below.</div>
+    @endif
     <div class="mb-6 flex flex-wrap items-center gap-2 text-sm">
         <x-badge :status="$contract->effectiveStatus()" />
         <x-badge :status="$contract->paymentState()" />
@@ -70,6 +75,9 @@
                         @if ($action === 'terminate') @continue @endif
                         <form method="post" action="{{ route('admin.contracts.lifecycle', $contract) }}" data-confirm="{{ ['approve' => 'Approve this contract? It stays hidden from the client until you send it for signature.', 'activate' => 'Activate this contract? The client will be emailed, and if it is signed its first invoice is issued.', 'cancel' => 'Cancel this contract? The client will be emailed.', 'complete' => 'Mark this contract completed? The client will be emailed.', 'reopen' => 'Move this contract back to draft?'][$action] ?? '' }}">@csrf @method('patch')<input type="hidden" name="action" value="{{ $action }}"><button class="btn {{ in_array($action, ['approve', 'activate']) ? 'btn-primary' : 'btn-light' }} btn-sm">{{ ['approve' => 'Approve', 'activate' => 'Activate', 'complete' => 'Mark completed', 'cancel' => 'Cancel contract', 'reopen' => 'Back to draft'][$action] }}</button></form>
                     @endforeach
+                    @if ($contract->canBeArchived())
+                        <form method="post" action="{{ route('admin.contracts.archive', $contract) }}" data-confirm="{{ in_array($contract->status, ['draft', 'approved']) ? 'Withdraw this unsigned contract and archive it? It is cancelled, any unpaid invoices on it are voided, and the client is told if it was sent to them.' : 'Archive this contract? It leaves your lists but stays on record; you can unarchive it any time.' }}">@csrf @method('patch')<button class="btn btn-light btn-sm">{{ in_array($contract->status, ['draft', 'approved']) ? 'Withdraw and archive' : 'Archive' }}</button></form>
+                    @endif
                     @if (($contract->isLive() || $contract->effectiveStatus() === 'expired') && $contract->renewals->isEmpty())
                         <form method="post" action="{{ route('admin.contracts.renew', $contract) }}">@csrf<button class="btn btn-light btn-sm">Draft renewal</button></form>
                     @endif

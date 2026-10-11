@@ -36,6 +36,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/documents/invoices/{invoice}/print', [DocumentController::class, 'invoice'])->name('documents.invoice');
     Route::get('/documents/contracts/{contract}/print', [DocumentController::class, 'contract'])->name('documents.contract');
     Route::get('/documents/clients/{client}/statement', [DocumentController::class, 'statement'])->name('documents.statement');
+    Route::get('/documents/payments/{payment}/receipt', [DocumentController::class, 'receipt'])->name('documents.receipt');
     Route::get('/files/payments/{payment}/proof', [FileController::class, 'proof'])->name('files.proof');
     Route::get('/files/contracts/{contract}/document', [FileController::class, 'contract'])->name('files.contract');
 });
@@ -56,6 +57,8 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::patch('contracts/{contract}/signature', [Admin\ContractController::class, 'signature'])->name('contracts.signature');
     Route::patch('contracts/{contract}/lifecycle', [Admin\ContractController::class, 'lifecycle'])->name('contracts.lifecycle');
     Route::post('contracts/{contract}/renew', [Admin\ContractController::class, 'renew'])->name('contracts.renew');
+    Route::patch('contracts/{contract}/archive', [Admin\ContractController::class, 'archive'])->name('contracts.archive');
+    Route::patch('contracts/{contract}/unarchive', [Admin\ContractController::class, 'unarchive'])->name('contracts.unarchive');
     Route::post('contracts/{contract}/remind', [Admin\ContractController::class, 'remind'])->middleware('throttle:20,1')->name('contracts.remind');
     Route::get('contracts/{contract}/versions/{version}', [Admin\ContractController::class, 'version'])->whereNumber('version')->name('contracts.version');
     Route::get('contracts/{contract}/activity', [Admin\ContractController::class, 'activity'])->name('contracts.activity');
@@ -87,6 +90,7 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::post('payments', [Admin\PaymentController::class, 'store'])->name('payments.store');
     Route::get('payments/{payment}', [Admin\PaymentController::class, 'show'])->name('payments.show');
     Route::patch('payments/{payment}/verify', [Admin\PaymentController::class, 'verify'])->name('payments.verify');
+    Route::post('payments/{payment}/receipt', [Admin\PaymentController::class, 'resendReceipt'])->middleware('throttle:20,1')->name('payments.receipt');
     Route::patch('payments/{payment}/reject', [Admin\PaymentController::class, 'reject'])->name('payments.reject');
     Route::delete('payments/{payment}', [Admin\PaymentController::class, 'destroy'])->name('payments.destroy');
 });
@@ -108,6 +112,7 @@ Route::middleware(['auth', 'role:client'])->prefix('portal')->name('portal.')->g
     Route::get('invoices', [Portal\InvoiceController::class, 'index'])->name('invoices.index');
     Route::get('invoices/{invoice}', [Portal\InvoiceController::class, 'show'])->name('invoices.show');
     Route::post('invoices/{invoice}/card', [Portal\CardPaymentController::class, 'start'])->middleware('throttle:6,1')->name('invoices.card');
+    Route::get('receipts', [Portal\ReceiptController::class, 'index'])->name('receipts.index');
     Route::get('payments', [Portal\PaymentController::class, 'index'])->name('payments.index');
     Route::get('payments/new', [Portal\PaymentController::class, 'create'])->name('payments.create');
     Route::post('payments', [Portal\PaymentController::class, 'store'])->middleware('throttle:6,1')->name('payments.store');

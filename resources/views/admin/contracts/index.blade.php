@@ -7,6 +7,7 @@
         <select name="status" aria-label="Status" class="input max-w-40"><option value="">Any status</option>@foreach (config('company.contract_statuses') as $k => $v)<option value="{{ $k }}" @selected(request('status') === $k)>{{ $v }}</option>@endforeach</select>
         <select name="type" aria-label="Type" class="input max-w-48"><option value="">Any type</option>@foreach (config('company.contract_types') as $k => $v)<option value="{{ $k }}" @selected(request('type') === $k)>{{ $v }}</option>@endforeach</select>
         <select name="cycle" aria-label="Billing" class="input max-w-44"><option value="">Any billing</option>@foreach (config('company.billing_cycles') as $k => $v)<option value="{{ $k }}" @selected(request('cycle') === $k)>{{ $v['label'] }}</option>@endforeach</select>
+        <select name="view" aria-label="Show" class="input max-w-40"><option value="">Current</option><option value="archived" @selected(request('view') === 'archived')>Archived</option></select>
         <select name="client" aria-label="Client" class="input max-w-52"><option value="">Any client</option>@foreach ($clients as $c)<option value="{{ $c->id }}" @selected((int) request('client') === $c->id)>{{ $c->company }}</option>@endforeach</select>
         <button class="sr-only focus:not-sr-only btn btn-light">Apply filters</button>
     </form>

@@ -24,7 +24,7 @@ class RevenueReportController extends Controller
         $days = (int) config('company.renewal_alert_days');
         $alerts = $contracts->filter(fn (Contract $c) => $c->isLive() && $c->end_date && $c->end_date->lte(now()->addDays($days)) && $c->renewals->isEmpty())->sortBy('end_date');
         $notices = $contracts->filter(fn (Contract $c) => $c->isLive() && $c->noticeDeadline() && $c->noticeDeadline()->between(now(), now()->addDays(30)))->sortBy(fn ($c) => $c->noticeDeadline());
-        $unsigned = $contracts->filter(fn (Contract $c) => in_array($c->status, ['approved', 'active']) && ! $c->isSigned());
+        $unsigned = $contracts->filter(fn (Contract $c) => in_array($c->status, ['approved', 'active']) && ! $c->isSigned() && ! $c->isArchived());
 
         return view('admin.reports.revenue', [
             'contracts' => $contracts,

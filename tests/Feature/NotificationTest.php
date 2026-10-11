@@ -78,7 +78,7 @@ class NotificationTest extends TestCase
         Notification::assertSentTo($this->clientUser, PortalMail::class, fn ($n) => str_contains($n->subject, 'could not verify') && in_array('Reason: Nothing received', $n->lines));
 
         $this->actingAs($this->admin)->patch(route('admin.payments.verify', $payment));
-        Notification::assertSentTo($this->clientUser, PortalMail::class, fn ($n) => str_starts_with($n->subject, 'Payment confirmed'));
+        Notification::assertSentTo($this->clientUser, PortalMail::class, fn ($n) => str_starts_with($n->subject, 'Receipt RCT-'.now()->format('Y').'-001: TT$400.00 received') && $n->actionUrl === route('documents.receipt', $payment));
     }
 
     public function test_contract_signature_request_and_signing_notify_both_sides(): void
