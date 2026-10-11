@@ -4,8 +4,8 @@ Same layout as the All Things Tobago site: the whole project goes into `public_h
 the root `.htaccess` sends every request into `public/` and blocks direct access to
 `.env`, `vendor/`, `storage/` and the rest. The lock file is pinned to PHP 8.3.
 
-Use a subdomain such as `portal.codecanvas.tt` (hPanel → Domains → Subdomains) with its
-document root set to that subdomain's `public_html`.
+The live site is `https://portal.codecanvastt.com` (hPanel → Domains → Subdomains) with its
+document root set to that subdomain's `public_html`. The MySQL database and user are both `u269010508_ccportal`.
 
 ## 1. hPanel
 
@@ -14,7 +14,26 @@ document root set to that subdomain's `public_html`.
 3. **Email**: use the `mxadmin@codecanvastt.com` mailbox (or create one) and put its SMTP password in `.env`. The portal emails clients when quotations, invoices and contracts are sent, when payments are verified, and for reminders; you receive a copy of each and a note when a client submits a payment, signs, or answers a quotation.
 4. **SSL**: Security → SSL → active for the subdomain.
 
-## 2. After upload or `git clone` into `public_html` (SSH)
+## 2a. Upload the release zip (no Composer needed on the server)
+
+`scripts/build-release.sh` builds `release/portal.codecanvastt.com.zip` on your machine: production-only
+`vendor/`, built assets, and a `.env` that already has the domain, database name and user, and a
+fresh `APP_KEY`. Only two values are left blank: `DB_PASSWORD` and `MAIL_PASSWORD`.
+
+1. hPanel → File Manager → the subdomain's `public_html` (empty it first if it has a placeholder
+   `default.php`). Upload the zip, right-click → Extract, then delete the zip.
+2. Edit `.env` in File Manager and fill in `DB_PASSWORD` and `MAIL_PASSWORD`.
+3. hPanel → Advanced → SSH access, then:
+
+```sh
+cd ~/public_html            # or ~/domains/portal.codecanvastt.com/public_html
+php artisan migrate --force
+php artisan portal:admin    # your login (prompts for a password)
+chmod -R ug+rwx storage bootstrap/cache
+php artisan optimize
+```
+
+## 2b. Or `git clone` into `public_html` and build on the server (SSH)
 
 ```sh
 cd ~/public_html
