@@ -8,7 +8,6 @@ use App\Models\Contract;
 use App\Services\ContractInvoicing;
 use App\Services\ContractLifecycle;
 use App\Services\Notifier;
-use App\Services\UnreadDocuments;
 use App\Support\Audit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -31,8 +30,6 @@ class ContractController extends Controller
         if (! ClientPreviewController::active()) {
             Audit::log($contract, 'viewed_by_client');
         }
-
-        app(UnreadDocuments::class)->markRead($request->user(), $contract);
 
         return view('portal.contracts.show', ['contract' => $contract->load(['invoices' => fn ($q) => $q->where('status', '!=', 'draft'), 'payments'])]);
     }
@@ -88,7 +85,6 @@ class ContractController extends Controller
 
             return $this->notOpenForSignature($contract->fresh());
         }
-        app(UnreadDocuments::class)->markRead($request->user(), $contract->fresh()); // signing activates it; they have clearly seen it
         $invoice = app(ContractInvoicing::class)->issueFirstInvoice($contract);
         app(Notifier::class)->contractSigned($contract->fresh(['client.users']), $invoice);
 
