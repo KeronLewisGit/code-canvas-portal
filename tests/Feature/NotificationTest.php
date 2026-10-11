@@ -133,20 +133,19 @@ class NotificationTest extends TestCase
                 && $rendered->actionUrl === route('login');
         });
         Notification::assertNotSentTo($this->clientUser, PortalMail::class);
-        $this->assertTrue(session('credentials')['emailed']);
+        $this->assertNull(session('credentials'), 'no banner once the details are emailed');
 
         $this->actingAs($this->admin)->post(route('admin.clients.users.store', $this->client), ['name' => 'Cy', 'email' => 'cy@acme.test', 'password' => 'chosen-password-1'])
             ->assertRedirect()->assertSessionHas('saved', 'Portal login created.');
         Notification::assertNotSentTo(User::where('email', 'cy@acme.test')->firstOrFail(), PortalMail::class);
         $this->assertSame('chosen-password-1', session('credentials')['password']);
-        $this->assertFalse(session('credentials')['emailed']);
     }
 
     public function test_resetting_a_password_can_email_the_new_one(): void
     {
         $this->actingAs($this->admin)->patch(route('admin.clients.users.update', [$this->client, $this->clientUser]), ['send_email' => '1'])
-            ->assertRedirect()->assertSessionHas('saved', 'Password reset and emailed to ann@acme.test.');
-        $password = session('credentials')['password'];
+            ->assertRedirect()->assertSessionHas('saved', 'Password reset and emailed to ann@acme.test.')->assertSessionMissing('credentials');
+        $password = $this->emailedPassword($this->clientUser);
         Notification::assertSentTo($this->clientUser, PortalMail::class, fn (PortalMail $mail) => str_contains($mail->subject, 'password was reset') && in_array('Password: '.$password, $mail->lines, true));
         $this->assertTrue(password_verify($password, $this->clientUser->fresh()->password));
 
@@ -163,5 +162,13 @@ class NotificationTest extends TestCase
         $this->assertStringContainsString('© '.date('Y').' Code Canvas Consultants Ltd. All rights reserved.', $html);
         $this->assertStringContainsString('href="https://codecanvastt.com"', $html);
         $this->assertStringNotContainsString('Code Canvas Portal. All rights reserved', $html);
+    }
+
+    /** The password as it appeared in the email sent to this user. */
+    private function emailedPassword(User $user): string
+    {
+        $lines = Notification::sent($user, PortalMail::class)->last()->lines;
+
+        return substr(collect($lines)->first(fn ($l) => str_starts_with($l, 'Password: ')), strlen('Password: '));
     }
 }

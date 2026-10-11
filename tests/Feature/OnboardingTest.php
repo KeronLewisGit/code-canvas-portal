@@ -35,10 +35,10 @@ class OnboardingTest extends TestCase
 
         $client = Client::firstWhere('company', 'Acme');
         $user = $client->users()->sole();
-        $password = session('credentials')['password'];
+        $password = $this->emailedPassword($user);
         $this->assertSame(['ann@acme.test', 'Ann', 'client'], [$user->email, $user->name, $user->role]);
         $this->assertTrue(Hash::check($password, $user->password));
-        $this->assertTrue(session('credentials')['emailed']);
+        $this->assertNull(session('credentials'), 'no banner once the details are emailed');
 
         Notification::assertSentTo($user, PortalMail::class, fn (PortalMail $mail) => str_contains($mail->subject, 'Welcome to the')
             && str_contains($mail->lines[0], 'onboarded') && in_array('Password: '.$password, $mail->lines, true) && $mail->actionUrl === route('login'));
@@ -137,5 +137,13 @@ class OnboardingTest extends TestCase
 
         $this->actingAs($user)->get(route('portal.dashboard'))->assertOk()
             ->assertSee('Crystal &amp; Co.', false)->assertDontSee('&amp;amp;', false)->assertDontSee('&amp;#039;', false);
+    }
+
+    /** The password as it appeared in the email sent to this user. */
+    private function emailedPassword(User $user): string
+    {
+        $lines = Notification::sent($user, PortalMail::class)->last()->lines;
+
+        return substr(collect($lines)->first(fn ($l) => str_starts_with($l, 'Password: ')), strlen('Password: '));
     }
 }

@@ -30,10 +30,13 @@ class PortalAccess
         return ['user' => $user, 'password' => $password, 'emailed' => $sendEmail && app(Notifier::class)->loginDetails($user, $password, isNew: false)];
     }
 
-    /** Flash data for the one-time credentials banner in the layout. */
-    public static function banner(array $result): array
+    /**
+     * Flash data for the one-time credentials banner. Only when the email did not go out (not requested, or it
+     * failed) does the admin need to see the password to pass it on; otherwise it is never shown or kept.
+     */
+    public static function banner(array $result): ?array
     {
-        return ['email' => $result['user']->email, 'password' => $result['password'], 'emailed' => $result['emailed']];
+        return $result['emailed'] ? null : ['email' => $result['user']->email, 'password' => $result['password']];
     }
 
     private function generatePassword(): string

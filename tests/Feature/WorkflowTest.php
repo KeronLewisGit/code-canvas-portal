@@ -31,7 +31,7 @@ class WorkflowTest extends TestCase
         $this->actingAs($admin)->post(route('admin.clients.store'), ['company' => 'Acme', 'contact_name' => 'Ann', 'email' => 'ann@acme.test', 'active' => '1', 'create_login' => '1']);
         $client = Client::sole();
         $user = $client->users()->sole();
-        $password = session('credentials')['password'];
+        $password = substr(collect(Notification::sent($user, PortalMail::class)->last()->lines)->first(fn ($l) => str_starts_with($l, 'Password: ')), 10);
         Notification::assertSentTo($user, PortalMail::class, fn (PortalMail $m) => str_contains($m->subject, 'Welcome'));
         auth()->logout();
 
