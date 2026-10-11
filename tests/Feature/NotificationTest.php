@@ -153,4 +153,15 @@ class NotificationTest extends TestCase
         $this->actingAs($this->admin)->patch(route('admin.clients.users.update', [$this->client, $this->clientUser]))->assertSessionHas('saved', 'Password reset.');
         Notification::assertSentToTimes($this->clientUser, PortalMail::class, 1);
     }
+
+    public function test_emails_carry_the_code_canvas_logo_footer_and_website_link(): void
+    {
+        $html = (string) (new PortalMail('Hello', ['A line.'], 'Open', route('login')))->toMail($this->clientUser)->render();
+
+        $this->assertStringContainsString(asset('images/brand/logo-email.png'), $html);
+        $this->assertStringContainsString('alt="Code Canvas Consultants Ltd"', $html);
+        $this->assertStringContainsString('© '.date('Y').' Code Canvas Consultants Ltd. All rights reserved.', $html);
+        $this->assertStringContainsString('href="https://codecanvastt.com"', $html);
+        $this->assertStringNotContainsString('Code Canvas Portal. All rights reserved', $html);
+    }
 }
