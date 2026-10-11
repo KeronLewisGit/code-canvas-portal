@@ -38,6 +38,7 @@
                                 <div class="min-w-0">
                                     <p class="font-semibold">{{ $u->name }}</p>
                                     <p class="truncate text-xs text-muted" title="{{ $u->email }}">{{ $u->email }}</p>
+                                    <p class="mt-1 text-xs text-muted">@if ($u->last_login_at)Signed in {{ $u->last_login_at->diffForHumans() }}@else Has not signed in yet @endif @if ($u->last_seen_at)· {{ $u->last_activity }}, {{ $u->last_seen_at->diffForHumans() }}@endif</p>
                                 </div>
                                 <form method="post" action="{{ route('admin.clients.users.destroy', [$client, $u]) }}" data-confirm="Remove this login? This person will no longer be able to sign in.">@csrf @method('delete')
                                     <button class="-m-1 grid size-8 shrink-0 cursor-pointer place-items-center rounded-lg text-muted transition hover:bg-red-50 hover:text-red-700 focus-visible:ring-4 focus-visible:ring-red-100 focus:outline-none" title="Remove login" aria-label="Remove login for {{ $u->name }}"><x-icon name="trash" class="size-4" /></button>

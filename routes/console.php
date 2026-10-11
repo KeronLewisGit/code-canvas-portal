@@ -21,3 +21,7 @@ Schedule::job(new SendSignatureReminders)->dailyAt('09:30')->withoutOverlapping(
 // The database cache store never deletes expired entries itself; clear them nightly so the table stays small.
 Schedule::call(fn () => DB::table(config('cache.stores.database.table', 'cache'))->where('expiration', '<', now()->getTimestamp())->delete())
     ->name('prune-expired-cache')->dailyAt('03:00')->withoutOverlapping();
+
+// Sign-in history is kept for a year.
+Schedule::call(fn () => DB::table('login_events')->where('created_at', '<', now()->subYear())->delete())
+    ->name('prune-login-history')->dailyAt('03:10')->withoutOverlapping();
