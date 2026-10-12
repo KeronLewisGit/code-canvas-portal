@@ -6,18 +6,28 @@
         <button class="sr-only focus:not-sr-only btn btn-light">Search</button>
     </form>
 
-    <div class="card overflow-x-auto p-0 sm:p-0">
-        <table class="table min-w-[760px]"><thead><tr><th>Login</th><th>Client</th><th>Last signed in</th><th>Last activity</th></tr></thead><tbody>
-            @forelse ($logins as $u)
-                <tr>
-                    <td><span class="font-semibold">{{ $u->name }}</span><span class="block text-xs text-muted">{{ $u->email }}</span></td>
-                    <td>@if ($u->client)<a href="{{ route('admin.clients.show', $u->client) }}" class="hover:text-brand-700">{{ $u->client->company }}</a>@if (! $u->client->active)<x-badge status="cancelled" class="ml-1">Inactive</x-badge>@endif @endif</td>
-                    <td class="whitespace-nowrap text-sm">@if ($u->last_login_at){{ $u->last_login_at->diffForHumans() }}<span class="block text-xs text-muted">{{ $u->last_login_at->format('j M Y, g:ia') }}</span>@else<span class="text-muted">Never</span>@endif</td>
-                    <td class="text-sm">@if ($u->last_seen_at){{ $u->last_activity }}<span class="block text-xs text-muted">{{ $u->last_seen_at->diffForHumans() }} · {{ $u->last_seen_at->format('j M Y, g:ia') }}</span>@else<span class="text-muted">No activity yet</span>@endif</td>
-                </tr>
-            @empty<tr><td colspan="4"><x-empty>No client logins match.</x-empty></td></tr>@endforelse
-        </tbody></table>
-    </div>
+    <form method="get" action="{{ route('admin.activity.email') }}" x-data="{ picked: 0 }" @change="picked = $el.querySelectorAll('input[name=\'users[]\']:checked').length">
+        <div class="mb-3 flex flex-wrap items-center gap-2">
+            <button class="btn btn-primary btn-sm" :disabled="picked === 0"><x-icon name="mail" class="size-4" /> <span x-text="picked ? 'Email ' + picked + ' selected' : 'Email selected'">Email selected</span></button>
+            @if ($neverCount)<a href="{{ route('admin.activity.email', ['never' => 1]) }}" class="btn btn-light btn-sm">Email everyone who hasn't signed in ({{ $neverCount }})</a>@endif
+        </div>
+        <div class="card overflow-x-auto p-0 sm:p-0">
+            <table class="table min-w-[820px]"><thead><tr>
+                <th class="w-10"><input type="checkbox" aria-label="Select all on this page" class="size-4 rounded border-line" @change="$root.querySelectorAll('input[name=\'users[]\']').forEach(c => c.checked = $event.target.checked)"></th>
+                <th>Login</th><th>Client</th><th>Last signed in</th><th>Last activity</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
+                @forelse ($logins as $u)
+                    <tr>
+                        <td><input type="checkbox" name="users[]" value="{{ $u->id }}" aria-label="Select {{ $u->name }}" class="size-4 rounded border-line"></td>
+                        <td><span class="font-semibold">{{ $u->name }}</span><span class="block text-xs text-muted">{{ $u->email }}</span></td>
+                        <td>@if ($u->client)<a href="{{ route('admin.clients.show', $u->client) }}" class="hover:text-brand-700">{{ $u->client->company }}</a>@if (! $u->client->active)<x-badge status="cancelled" class="ml-1">Inactive</x-badge>@endif @endif</td>
+                        <td class="whitespace-nowrap text-sm">@if ($u->last_login_at){{ $u->last_login_at->diffForHumans() }}<span class="block text-xs text-muted">{{ $u->last_login_at->format('j M Y, g:ia') }}</span>@else<span class="text-muted">Never</span>@endif</td>
+                        <td class="text-sm">@if ($u->last_seen_at){{ $u->last_activity }}<span class="block text-xs text-muted">{{ $u->last_seen_at->diffForHumans() }} · {{ $u->last_seen_at->format('j M Y, g:ia') }}</span>@else<span class="text-muted">No activity yet</span>@endif</td>
+                        <td class="text-right">@if ($u->client?->active)<a href="{{ route('admin.activity.email', ['users' => [$u->id]]) }}" class="btn btn-light btn-sm">Email</a>@endif</td>
+                    </tr>
+                @empty<tr><td colspan="6"><x-empty>No client logins match.</x-empty></td></tr>@endforelse
+            </tbody></table>
+        </div>
+    </form>
     <div class="mt-4">{{ $logins->links() }}</div>
 
     <section class="card mt-6 overflow-x-auto">

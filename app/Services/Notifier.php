@@ -253,6 +253,19 @@ class Notifier
      * The welcome for clients moved over from the old system: what the portal is, what they can do there in plain
      * language, how it works, and a link to choose their password. Sent immediately, like other login emails.
      */
+    /** A message written by an admin to one client login. Paragraphs are separated by blank lines. */
+    public function message(User $user, string $subject, string $body, bool $withButton): bool
+    {
+        $paragraphs = array_values(array_filter(array_map('trim', preg_split('/\R\s*\R/', trim($body)))));
+        $mail = new PortalMail($subject, $paragraphs, $withButton ? 'Open the portal' : null, $withButton ? route('home') : null);
+
+        return $this->deliver(function () use ($user, $mail) {
+            $user->notifyNow($mail);
+
+            return true;
+        }, $mail);
+    }
+
     public function migrationWelcome(User $user, string $setPasswordUrl): bool
     {
         $short = config('company.short');
