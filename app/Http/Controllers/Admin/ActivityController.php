@@ -24,7 +24,7 @@ class ActivityController extends Controller
             ->orderByDesc('login_events.created_at')->limit(30)
             ->get(['login_events.created_at', 'login_events.ip', 'login_events.user_agent', 'users.name', 'users.role', 'users.client_id', 'clients.company']);
 
-        return view('admin.activity', ['logins' => $logins, 'signIns' => $signIns, 'neverCount' => User::where('role', 'client')->whereNotNull('client_id')->whereNull('last_login_at')->count()]);
+        return view('admin.activity', ['logins' => $logins, 'signIns' => $signIns, 'neverCount' => User::where('role', 'client')->whereHas('client', fn ($c) => $c->where('active', true))->whereNull('last_login_at')->count()]);
     }
 
     /** "Chrome on Windows" from a user agent, good enough to recognise a device. */

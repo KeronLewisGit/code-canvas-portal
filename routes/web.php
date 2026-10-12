@@ -64,6 +64,8 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::get('contracts/{contract}/activity', [Admin\ContractController::class, 'activity'])->name('contracts.activity');
 
     Route::get('activity', Admin\ActivityController::class)->name('activity');
+    Route::get('activity/email', [Admin\ClientEmailController::class, 'create'])->name('activity.email');
+    Route::post('activity/email', [Admin\ClientEmailController::class, 'store'])->name('activity.email.send');
     Route::get('reports/revenue', Admin\RevenueReportController::class)->name('reports.revenue');
     Route::get('settings', [Admin\SettingsController::class, 'terms'])->name('settings.terms');
     Route::put('settings/terms', [Admin\SettingsController::class, 'update'])->name('settings.terms.update');
