@@ -87,6 +87,27 @@ class SlssProposalTest extends TestCase
         $this->actingAs($this->clientUser)->get(route('documents.receipt', Payment::orderBy('paid_on')->first()))->assertOk();
     }
 
+    public function test_rerunning_after_the_draft_is_deleted_attaches_the_existing_invoices_to_the_new_contract(): void
+    {
+        $this->artisan('portal:draft-proposal', ['proposal' => 'slss-maintenance'])->assertSuccessful();
+        // As if the invoices had been imported before the proposal named their terms: unlinked, like an older import.
+        Invoice::query()->update(['contract_id' => null, 'kind' => 'standard', 'period_start' => null]);
+        Payment::query()->update(['contract_id' => null]);
+        Contract::sole()->delete();
+
+        $this->artisan('portal:draft-proposal', ['proposal' => 'slss-maintenance'])->assertSuccessful()
+            ->expectsOutputToContain('INV-000049 was already on this profile and is now attached to the contract as the term from 1 Jun 2026');
+
+        $contract = Contract::sole();
+        $this->assertSame([3, 3], [Invoice::count(), Payment::count()], 'nothing is duplicated');
+        $this->assertSame(['INV-000049', 'INV-000063'], $contract->invoices()->reorder()->orderBy('period_start')->pluck('reference')->all());
+        $this->assertSame(['2026-06-01', '2026-10-01'], $contract->invoices()->reorder()->orderBy('period_start')->get()->map(fn ($i) => $i->period_start->toDateString())->all());
+        $this->assertSame(2, $contract->payments()->where('status', 'verified')->count());
+        $this->assertSame(7600.0, $contract->paidAmount(), 'TT$5,000 on INV-000049 (the hosting renewal was on the same invoice) plus TT$2,600 on INV-000063');
+        $this->assertSame(0.0, $contract->balance());
+        $this->assertSame('paid', $contract->paymentState());
+    }
+
     public function test_running_it_twice_changes_nothing(): void
     {
         $this->artisan('portal:draft-proposal', ['proposal' => 'slss-maintenance'])->assertSuccessful();

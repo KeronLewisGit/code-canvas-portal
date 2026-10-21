@@ -147,13 +147,22 @@ class DraftProposalCommand extends Command
         $done = [];
         usort($history, fn ($a, $b) => [$a['paid_on'], $a['reference']] <=> [$b['paid_on'], $b['reference']]);
         foreach ($history as $h) {
-            if (Invoice::where('reference', $h['reference'])->where('client_id', $client->id)->exists()) {
-                $this->warn($h['reference'].' is already on this profile, so it was left as it is.');
+            $period = isset($h['period_start']) ? Carbon::parse($h['period_start'])->startOfDay() : null;
+            $existing = Invoice::where('reference', $h['reference'])->where('client_id', $client->id)->first();
+            if ($existing) {
+                // Imported by an earlier run (perhaps before the proposal named its term): attach it to this contract now,
+                // so the term it paid for is not billed again and its payment counts toward the contract.
+                if ($period && $existing->contract_id === null) {
+                    $existing->forceFill(['contract_id' => $contract->id, 'kind' => 'cycle', 'period_start' => $period])->save();
+                    $existing->payments()->update(['contract_id' => $contract->id]);
+                    $this->line('  '.$h['reference'].' was already on this profile and is now attached to the contract as the '.$contract->cycle()['per'].' from '.$period->format('j M Y').'.');
+                } else {
+                    $this->warn($h['reference'].' is already on this profile, so it was left as it is.');
+                }
 
                 continue;
             }
             $issued = Carbon::parse($h['issue_date'])->startOfDay();
-            $period = isset($h['period_start']) ? Carbon::parse($h['period_start'])->startOfDay() : null;
             $invoice = Invoice::create([
                 'reference' => $h['reference'], 'client_id' => $client->id, 'contract_id' => $period ? $contract->id : null, 'kind' => $period ? 'cycle' : 'standard', 'period_start' => $period,
                 'title' => $h['title'], 'issue_date' => $issued, 'due_date' => Carbon::parse($h['due_date'])->startOfDay(), 'currency' => $h['currency'], 'tax_rate' => 0, 'status' => 'sent', 'sent_at' => $issued, 'notes' => $h['note'] ?? null,
