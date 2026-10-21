@@ -28,6 +28,7 @@ use Illuminate\Support\Facades\Storage;
  * @property string $currency
  * @property string $status
  * @property string|null $scope
+ * @property string|null $terms special terms agreed for this client; printed before the standard terms and prevail over them
  * @property string|null $file_path
  * @property array<string, string>|null $standard_terms
  * @property Carbon|null $signed_at
@@ -131,7 +132,7 @@ class Contract extends Model
     }
 
     /** Material terms that are versioned on amendment. */
-    public const MATERIAL_FIELDS = ['title', 'type', 'start_date', 'end_date', 'amount', 'billing_cycle', 'currency', 'payment_terms_days', 'notice_period_days', 'auto_renew', 'client_signatory', 'company_signatory', 'scope'];
+    public const MATERIAL_FIELDS = ['title', 'type', 'start_date', 'end_date', 'amount', 'billing_cycle', 'currency', 'payment_terms_days', 'notice_period_days', 'auto_renew', 'client_signatory', 'company_signatory', 'scope', 'terms'];
 
     public function materialSnapshot(): array
     {

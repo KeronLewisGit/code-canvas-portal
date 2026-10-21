@@ -26,6 +26,11 @@
             <section class="card text-sm">
                 <h2 class="text-lg font-bold">Scope of work</h2>
                 <p class="mt-4 whitespace-pre-line">{{ $contract->scope ?: 'Scope to be confirmed.' }}</p>
+                @if (filled($contract->terms))
+                    <h3 class="mt-6 font-bold">Special terms</h3>
+                    <p class="mt-2 whitespace-pre-line">{{ $contract->terms }}</p>
+                    <p class="mt-2 text-xs text-muted">Where the special terms differ from the standard terms below, the special terms apply.</p>
+                @endif
                 <details class="mt-6"><summary class="cursor-pointer font-bold">Standard terms</summary><div class="mt-4 space-y-3">@foreach ($contract->standardTerms() as $heading => $text)<div><p class="font-semibold">{{ $loop->iteration }}. {{ $heading }}</p><p class="text-muted">{{ $text }}</p></div>@endforeach</div></details>
             </section>
             <section class="card overflow-x-auto">

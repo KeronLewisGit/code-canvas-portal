@@ -17,6 +17,7 @@
                     <input id="status_display" value="{{ $contract->exists ? $contract->statusName() : 'Draft' }}" disabled class="input bg-paper">
                 </x-field>
                 <x-field label="Scope of work" name="scope" class="sm:col-span-2" hint="Shown to the client on the contract page. One item per line works well."><textarea id="scope" name="scope" rows="6" class="input">{{ old('scope', $contract->scope) }}</textarea></x-field>
+                <x-field label="Special terms" name="terms" class="sm:col-span-2" hint="Terms agreed with this client only, such as billing arrangements or an exit fee. They print before the standard terms and prevail wherever the two differ. Leave blank to use the standard terms alone."><textarea id="terms" name="terms" rows="8" class="input">{{ old('terms', $contract->terms) }}</textarea></x-field>
             </fieldset>
 
             <fieldset class="card grid gap-5 sm:grid-cols-2">

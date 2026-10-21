@@ -287,6 +287,7 @@ class ContractController extends Controller
             'confidential' => ['nullable', 'boolean'],
             'amendment_reason' => ['nullable', 'string', 'max:255'],
             'scope' => ['nullable', 'string', 'max:10000'],
+            'terms' => ['nullable', 'string', 'max:10000'],
             'signed_at' => ['nullable', 'date'],
             'file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'],
             'remove_file' => ['nullable', 'boolean'],

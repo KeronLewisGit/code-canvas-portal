@@ -12,6 +12,11 @@
             </dl>
             <h3 class="mt-6 font-semibold">Scope</h3>
             <p class="mt-1 whitespace-pre-line">{{ $contract->scope }}</p>
+            @if (filled($contract->terms))
+                <h3 class="mt-6 font-semibold">Special terms</h3>
+                <p class="mt-1 whitespace-pre-line">{{ $contract->terms }}</p>
+                <p class="mt-1 text-xs text-muted">Where the special terms differ from the standard terms below, the special terms apply.</p>
+            @endif
             <details class="mt-6 rounded-xl bg-paper p-4" open>
                 <summary class="cursor-pointer font-semibold">Standard terms ({{ count($contract->standardTerms()) }} clauses)</summary>
                 <div class="mt-4 space-y-3 text-sm">@foreach ($contract->standardTerms() as $heading => $text)<div><p class="font-semibold">{{ $loop->iteration }}. {{ $heading }}</p><p class="text-muted">{{ $text }}</p></div>@endforeach</div>

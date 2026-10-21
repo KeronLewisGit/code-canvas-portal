@@ -44,6 +44,10 @@
             <section class="card text-sm">
                 <h2 class="text-lg font-bold">Scope</h2>
                 <p class="mt-4 whitespace-pre-line">{{ $contract->scope ?: 'No scope written yet.' }}</p>
+                @if (filled($contract->terms))
+                    <h3 class="mt-6 font-bold">Special terms</h3>
+                    <p class="mt-2 whitespace-pre-line">{{ $contract->terms }}</p>
+                @endif
                 <p class="mt-4 text-xs text-muted">The standard Code Canvas terms print on page 2 of the contract PDF{{ $contract->standard_terms ? ', frozen as signed on '.$contract->signed_at?->format('j M Y') : '' }}. <a href="{{ route('admin.settings.terms') }}" class="font-semibold text-brand-700 hover:underline">Edit the terms</a>.</p>
             </section>
             <section class="card overflow-x-auto">

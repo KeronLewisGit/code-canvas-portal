@@ -22,10 +22,16 @@
         <p class="whitespace-pre-line text-sm">{{ $contract->scope ?: 'As described in the accepted quotation.' }}</p>
 
         <h2 class="mt-6 text-lg">2. Fees and payment</h2>
-        <p class="text-sm">@if ($contract->isRecurring())The Client agrees to pay {{ $company['name'] }} {{ money($contract->amount, $contract->currency) }} ({{ $contract->currency }}) per {{ $contract->cycle()['per'] }}, starting {{ $contract->start_date->format('j F Y') }} and continuing {{ $contract->end_date ? 'until '.$contract->end_date->format('j F Y') : 'until either party ends this agreement in writing' }}. Each {{ $contract->cycle()['per'] }} is payable in advance, by bank transfer, cheque or cash, against invoices issued through the client portal.@else The Client agrees to pay {{ $company['name'] }} {{ money($contract->amount, $contract->currency) }} ({{ $contract->currency }}) for the work described above, by bank transfer, cheque or cash, against invoices issued through the client portal.@endif Payments are confirmed once verified by {{ $company['short'] }}.</p>
+        <p class="text-sm">@if ($contract->isRecurring())The Client agrees to pay {{ $company['name'] }} {{ money($contract->amount, $contract->currency) }} ({{ $contract->currency }}) per {{ $contract->cycle()['per'] }}, starting {{ $contract->start_date->format('j F Y') }} and continuing {{ $contract->end_date ? 'until '.$contract->end_date->format('j F Y') : 'until either party ends this agreement in writing' }}. @if (filled($contract->terms))Invoicing and payment timing are set out in the special terms in section 3. Payment is made @else Each {{ $contract->cycle()['per'] }} is payable in advance, @endif by bank transfer, cheque or cash, against invoices issued through the client portal.@else The Client agrees to pay {{ $company['name'] }} {{ money($contract->amount, $contract->currency) }} ({{ $contract->currency }}) for the work described above, by bank transfer, cheque or cash, against invoices issued through the client portal.@endif Payments are confirmed once verified by {{ $company['short'] }}.</p>
 
         <h2 class="mt-6 text-lg">3. Terms</h2>
-        <p class="text-sm">The standard terms of {{ $company['name'] }} set out at the end of this document form part of this agreement.</p>
+        @if (filled($contract->terms))
+            <h3 class="mt-2 text-sm font-semibold">Special terms</h3>
+            <p class="whitespace-pre-line text-sm">{{ $contract->terms }}</p>
+            <p class="mt-2 text-sm">The standard terms of {{ $company['name'] }} set out at the end of this document also form part of this agreement. Where the special terms above differ from the standard terms or from section 2, the special terms apply.</p>
+        @else
+            <p class="text-sm">The standard terms of {{ $company['name'] }} set out at the end of this document form part of this agreement.</p>
+        @endif
 
         <h2 class="mt-6 text-lg">4. Agreement</h2>
         <p class="text-sm">By signing below, both parties agree to the scope, fees and terms set out in this document. An electronic signature made through the {{ $company['short'] }} client portal has the same effect as a handwritten signature.</p>
