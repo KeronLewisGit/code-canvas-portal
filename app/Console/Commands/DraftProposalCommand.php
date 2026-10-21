@@ -17,7 +17,8 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Puts a prepared proposal on a client's profile: an optional draft quotation, a draft contract carrying the agreed
- * special terms, and any earlier invoices that were settled outside the portal (with their payments and receipts).
+ * special terms, and any earlier invoices that were settled outside the portal (with their payments and receipts). An earlier
+ * invoice with a 'period_start' is attached to the contract as the invoice for that billing period, so it is not billed again.
  * Nothing is emailed and the client sees neither the quotation nor the contract until you send them. Safe on production.
  */
 class DraftProposalCommand extends Command
@@ -63,14 +64,15 @@ class DraftProposalCommand extends Command
             $this->applyContractDetails($contract, $proposal['contract']);
             Audit::log($contract, 'special_terms_added', ['from_proposal' => $this->argument('proposal')]);
 
-            return [$quotation, $contract, $this->importHistory($client, $proposal['history'] ?? [])];
+            return [$quotation, $contract, $this->importHistory($client, $contract, $proposal['history'] ?? [])];
         });
 
         $this->info('Drafted for '.$client->company.':');
         $quotation && $this->line('  Quotation '.$quotation->reference.' ('.money($quotation->total, $quotation->currency).' per '.$contract->cycle()['per'].'), draft, not sent');
         $this->line('  Contract  '.$contract->reference.', draft, not sent for signature');
         foreach ($imported as [$invoice, $payment]) {
-            $this->line('  '.$invoice->reference.' '.money($invoice->total, $invoice->currency).' recorded as paid, receipt '.$payment->receipt_number.' (not emailed)');
+            $period = $invoice->period_start ? ', '.$contract->cycle()['per'].' from '.$invoice->period_start->format('j M Y') : '';
+            $this->line('  '.$invoice->reference.' '.money($invoice->total, $invoice->currency).' recorded as paid'.$period.', receipt '.$payment->receipt_number.' (not emailed)');
         }
         $this->line('Review it at '.route('admin.contracts.show', $contract).', check the start date, then use Send for signature.');
 
@@ -133,11 +135,13 @@ class DraftProposalCommand extends Command
     /**
      * Record invoices that were issued and settled outside the portal: the invoice under its original number, one
      * verified payment, and a receipt. The receipt number is set here so the client is NOT emailed for old payments.
+     * With a 'period_start' the invoice (and its payment) belong to the contract as the billing period starting that day:
+     * the daily run then continues from the period after it, and the contract's balance counts the payment.
      *
      * @param  list<array<string, mixed>>  $history
      * @return list<array{0: Invoice, 1: Payment}>
      */
-    private function importHistory(Client $client, array $history): array
+    private function importHistory(Client $client, Contract $contract, array $history): array
     {
         $recordedBy = User::where('role', 'admin')->orderBy('id')->first();
         $done = [];
@@ -149,15 +153,16 @@ class DraftProposalCommand extends Command
                 continue;
             }
             $issued = Carbon::parse($h['issue_date'])->startOfDay();
+            $period = isset($h['period_start']) ? Carbon::parse($h['period_start'])->startOfDay() : null;
             $invoice = Invoice::create([
-                'reference' => $h['reference'], 'client_id' => $client->id, 'kind' => 'standard', 'title' => $h['title'], 'issue_date' => $issued,
-                'due_date' => Carbon::parse($h['due_date'])->startOfDay(), 'currency' => $h['currency'], 'tax_rate' => 0, 'status' => 'sent', 'sent_at' => $issued, 'notes' => $h['note'] ?? null,
+                'reference' => $h['reference'], 'client_id' => $client->id, 'contract_id' => $period ? $contract->id : null, 'kind' => $period ? 'cycle' : 'standard', 'period_start' => $period,
+                'title' => $h['title'], 'issue_date' => $issued, 'due_date' => Carbon::parse($h['due_date'])->startOfDay(), 'currency' => $h['currency'], 'tax_rate' => 0, 'status' => 'sent', 'sent_at' => $issued, 'notes' => $h['note'] ?? null,
             ]);
             $invoice->syncItems($h['items']);
 
             $paidOn = Carbon::parse($h['paid_on'])->startOfDay();
             $payment = Payment::create([
-                'client_id' => $client->id, 'invoice_id' => $invoice->id, 'amount' => $invoice->total, 'currency' => $invoice->currency, 'method' => $h['method'],
+                'client_id' => $client->id, 'contract_id' => $period ? $contract->id : null, 'invoice_id' => $invoice->id, 'amount' => $invoice->total, 'currency' => $invoice->currency, 'method' => $h['method'],
                 'paid_on' => $paidOn, 'reference' => $h['payment_reference'] ?? null, 'note' => 'Recorded by Code Canvas from the earlier invoice '.$h['reference'].'.',
                 'status' => 'verified', 'submitted_by' => $recordedBy?->id, 'verified_by' => $recordedBy?->id, 'verified_at' => now(),
                 'receipt_number' => Reference::next('receipt', Payment::class, 'receipt_number'),
