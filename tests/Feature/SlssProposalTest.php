@@ -111,6 +111,25 @@ class SlssProposalTest extends TestCase
         $this->assertSame('paid', $contract->paymentState());
     }
 
+    public function test_after_the_draft_is_withdrawn_and_archived_it_can_be_drafted_again_and_takes_the_invoices_with_it(): void
+    {
+        $this->artisan('portal:draft-proposal', ['proposal' => 'slss-maintenance'])->assertSuccessful();
+        $old = Contract::sole();
+        $this->actingAs(User::where('role', 'admin')->first())->patch(route('admin.contracts.archive', $old))->assertRedirect();
+        $this->assertSame(['cancelled', true, 3], [$old->fresh()->status, $old->fresh()->isArchived(), $old->invoices()->count()]);
+
+        $this->artisan('portal:draft-proposal', ['proposal' => 'slss-maintenance'])->assertSuccessful();
+
+        $new = Contract::where('status', 'draft')->sole();
+        $this->assertSame([3, 3, 2], [Invoice::count(), Payment::count(), Contract::count()], 'nothing is duplicated');
+        $this->assertSame(0, $old->invoices()->count());
+        $this->assertSame(['INV-000049', 'INV-000051', 'INV-000063'], $new->invoices()->reorder()->orderBy('reference')->pluck('reference')->all());
+        $this->assertSame(['2026-06-01', '2026-10-01'], $new->invoices()->where('kind', 'cycle')->reorder()->orderBy('period_start')->get()->map(fn ($i) => $i->period_start->toDateString())->all());
+        $this->assertSame(3, $new->payments()->where('status', 'verified')->count());
+        $this->assertSame([0.0, 'paid', '2027-02-01'], [$new->balance(), $new->paymentState(), $new->nextDueDate()->toDateString()]);
+        $this->assertSame(['paid', 'paid', 'paid'], Invoice::orderBy('reference')->pluck('status')->all(), 'paid invoices are not voided by the withdrawal');
+    }
+
     public function test_running_it_twice_changes_nothing(): void
     {
         $this->artisan('portal:draft-proposal', ['proposal' => 'slss-maintenance'])->assertSuccessful();

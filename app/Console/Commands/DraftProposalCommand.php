@@ -43,10 +43,11 @@ class DraftProposalCommand extends Command
             return self::FAILURE;
         }
 
+        // A cancelled (withdrawn) draft of the same proposal does not count: it can be drafted again.
         $title = $proposal['quotation']['title'] ?? $proposal['contract']['title'];
         $exists = isset($proposal['quotation'])
-            ? Quotation::where('client_id', $client->id)->where('title', $title)->exists()
-            : Contract::where('client_id', $client->id)->where('title', $title)->exists();
+            ? Quotation::where('client_id', $client->id)->where('title', $title)->where('status', '!=', 'cancelled')->exists()
+            : Contract::where('client_id', $client->id)->where('title', $title)->where('status', '!=', 'cancelled')->exists();
         if ($exists) {
             $this->warn($client->company.' already has "'.$title.'". Nothing was changed.');
 
@@ -151,9 +152,9 @@ class DraftProposalCommand extends Command
             $period = isset($h['period_start']) ? Carbon::parse($h['period_start'])->startOfDay() : null;
             $existing = Invoice::where('reference', $h['reference'])->where('client_id', $client->id)->first();
             if ($existing) {
-                // Imported by an earlier run (perhaps before the proposal named its term): attach it to this contract now,
-                // so the term it paid for is not billed again and its payment counts toward the contract.
-                if ($existing->contract_id === null) {
+                // Imported by an earlier run (perhaps before the proposal named its term, or onto a draft since withdrawn):
+                // attach it to this contract now, so the term it paid for is not billed again and its payment counts here.
+                if ($existing->contract_id === null || $existing->contract?->status === 'cancelled') {
                     $existing->forceFill(['contract_id' => $contract->id, 'kind' => $period ? 'cycle' : 'standard', 'period_start' => $period])->save();
                     $existing->payments()->update(['contract_id' => $contract->id]);
                     $this->line('  '.$h['reference'].' was already on this profile and is now attached to the contract'.($period ? ' as the '.$contract->cycle()['per'].' from '.$period->format('j M Y') : '').'.');
