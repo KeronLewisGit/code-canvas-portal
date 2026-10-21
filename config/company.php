@@ -111,6 +111,7 @@ return [
         'weekly' => ['label' => 'Weekly', 'per' => 'week', 'months' => null, 'days' => 7],
         'monthly' => ['label' => 'Monthly', 'per' => 'month', 'months' => 1, 'days' => null],
         'quarterly' => ['label' => 'Quarterly (every 3 months)', 'per' => 'quarter', 'months' => 3, 'days' => null],
+        'four_monthly' => ['label' => 'Every 4 months (per term)', 'per' => 'term', 'months' => 4, 'days' => null],
         'half_yearly' => ['label' => 'Half-yearly (every 6 months)', 'per' => '6 months', 'months' => 6, 'days' => null],
         'yearly' => ['label' => 'Yearly', 'per' => 'year', 'months' => 12, 'days' => null],
     ],

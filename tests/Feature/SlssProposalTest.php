@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
-/** The Success Laventille proposal: a draft contract billed at month end, and three earlier cash-paid invoices with receipts. */
+/** The Success Laventille proposal: a draft contract billed at term end, and three earlier cash-paid invoices with receipts. */
 class SlssProposalTest extends TestCase
 {
     use RefreshDatabase;
@@ -42,14 +42,14 @@ class SlssProposalTest extends TestCase
 
         $contract = Contract::sole();
         $this->assertSame(0, Quotation::count());
-        $this->assertSame(['draft', 'monthly', true, 'TTD', 30, 14], [$contract->status, $contract->billing_cycle, $contract->bill_in_arrears, $contract->currency, $contract->notice_period_days, $contract->payment_terms_days]);
-        $this->assertEquals(650, (float) $contract->amount);
+        $this->assertSame(['draft', 'four_monthly', true, 'TTD', 30, 14], [$contract->status, $contract->billing_cycle, $contract->bill_in_arrears, $contract->currency, $contract->notice_period_days, $contract->payment_terms_days]);
+        $this->assertEquals(2600, (float) $contract->amount);
         $this->assertEquals(0, (float) $contract->deposit_percent);
         $this->assertSame('2027-02-01', $contract->start_date->toDateString());
         $this->assertNull($contract->end_date);
         $this->assertStringContainsString('Registration management', $contract->scope);
         $this->assertStringContainsString('Security issue: within 12 business hours', $contract->scope);
-        $this->assertStringContainsString('invoiced at the end of that month', $contract->terms);
+        $this->assertStringContainsString('invoiced at the end of that four-month term', $contract->terms);
         $this->assertStringContainsString('slss.edu.tt only', $contract->terms);
         $this->assertNull($contract->sent_for_signature_at);
         $this->actingAs($this->clientUser)->get(route('portal.contracts.show', $contract))->assertNotFound();
@@ -121,18 +121,18 @@ class SlssProposalTest extends TestCase
         $png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
         $this->actingAs(User::where('role', 'admin')->first())->patch(route('admin.contracts.signature', $contract), ['action' => 'request'])->assertRedirect();
-        $this->actingAs($this->clientUser)->get(route('portal.contracts.sign', $contract))->assertOk()->assertSee('Special terms')->assertSee('TT$650.00 per month');
+        $this->actingAs($this->clientUser)->get(route('portal.contracts.sign', $contract))->assertOk()->assertSee('Special terms')->assertSee('TT$2,600.00 per four-month term');
         $this->actingAs($this->clientUser)->post(route('portal.contracts.sign.store', $contract), ['signed_name' => 'The Principal', 'agree' => 1, 'signature' => $png])
             ->assertRedirect(route('portal.contracts.show', $contract));
 
         $contract->refresh();
         $this->assertSame('active', $contract->status);
         $this->assertSame(0, $contract->invoices()->count(), 'nothing is invoiced when the contract is signed');
-        $this->assertSame('2027-02-28', $contract->nextDueDate()->toDateString());
+        $this->assertSame('2027-05-31', $contract->nextDueDate()->toDateString());
 
-        Carbon::setTestNow('2027-02-27 08:00:00');
+        Carbon::setTestNow('2027-05-30 08:00:00');
         $this->assertSame(0, $this->runDailyBilling($contract));
-        Carbon::setTestNow('2027-02-28 08:00:00');
+        Carbon::setTestNow('2027-05-31 08:00:00');
         $this->assertSame(1, $this->runDailyBilling($contract));
         $this->assertSame(0, $this->runDailyBilling($contract), 'a rerun the same day bills nothing more');
         Carbon::setTestNow();

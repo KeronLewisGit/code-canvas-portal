@@ -2,13 +2,13 @@
 
 /*
 | Success Laventille Secondary School (slss.edu.tt): the June 2026 "Website Maintenance Service Proposal", re-issued as a
-| portal contract for signature, now invoiced at the END of each month, plus the three earlier invoices that were paid in
+| portal contract for signature, now invoiced at the END of each four-month term, plus the three earlier invoices that were paid in
 | cash. Applied with:  php artisan portal:draft-proposal slss-maintenance
 | The contract is saved as a draft: nothing is emailed until you press Send for signature.
 |
 | CHECK BEFORE SENDING (these were not in the source documents):
-|  - 'amount': TT$650 a month is the old TT$2,600 per four-month term spread over four months.
-|  - 'start_date': 1 Feb 2027, the month after the term invoiced on INV-000063 (9 Oct 2026) is assumed to end.
+|  - 'amount': TT$2,600 a term, billed every 4 months, as the school pays it.
+|  - 'start_date': 1 Feb 2027, four months after the term invoiced on INV-000063 (9 Oct 2026) is assumed to begin.
 |  - 'paid_on' on each earlier invoice: set to the date the cash was really received. It is the invoice date for now.
 */
 
@@ -18,16 +18,16 @@ return [
     'contract' => [
         'title' => 'Website restoration and maintenance: slss.edu.tt',
         'type' => 'maintenance',
-        'billing_cycle' => 'monthly',
+        'billing_cycle' => 'four_monthly',
         'bill_in_arrears' => true,
-        'amount' => 650,
+        'amount' => 2600,
         'currency' => 'TTD',
         'start_date' => '2027-02-01',
         'notice_period_days' => 30,
         'payment_terms_days' => 14,
         'deposit_percent' => 0,
         'scope' => <<<'SCOPE'
-Services included in the monthly maintenance package for slss.edu.tt:
+Services included in the maintenance package for slss.edu.tt (billed every four months):
 - Content updates: add and edit school announcements, events, news posts and staff information; remove outdated notices and keep all pages current.
 - Registration management: update and manage the Form 1 online registration form each term, and keep submission data accurate and accessible.
 - Multimedia updates: upload photos, videos and documents such as graduation photos, newsletters and timetables.
@@ -49,9 +49,9 @@ Response times for requests submitted during an active term:
 - Monthly report: within 5 days of month-end.
 SCOPE,
         'terms' => <<<'TERMS'
-1. Fees. The website maintenance package, with all the services listed in the scope, is TT$650.00 per month. This is the TT$2,600.00 per four-month term in the original proposal, now billed monthly. The annual website restoration and hosting renewal fee of TT$2,400.00 is due at the start of each school year and is invoiced separately. All prices are in Trinidad and Tobago Dollars (TTD).
+1. Fees. The website maintenance package, with all the services listed in the scope, is TT$2,600.00 per four-month term, as in the original proposal. The annual website restoration and hosting renewal fee of TT$2,400.00 is due at the start of each school year and is invoiced separately. All prices are in Trinidad and Tobago Dollars (TTD).
 
-2. Billing and payment. Each month's maintenance is invoiced at the end of that month and is payable within 14 days of the invoice date. No deposit is payable. Payment is accepted by bank transfer, by cheque payable to Code Canvas Consultants Ltd, in cash, or online as details are provided. A receipt is issued for each payment. This replaces the deposit and advance-billing wording elsewhere in this agreement.
+2. Billing and payment. Each term's maintenance is invoiced at the end of that four-month term and is payable within 14 days of the invoice date. No deposit is payable. Payment is accepted by bank transfer, by cheque payable to Code Canvas Consultants Ltd, in cash, or online as details are provided. A receipt is issued for each payment. This replaces the deposit and advance-billing wording elsewhere in this agreement.
 
 3. Earlier invoices. Invoices INV-000049, INV-000051 and INV-000063 were paid in cash and are recorded as paid, with receipts, in the client portal.
 
