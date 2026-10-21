@@ -27,6 +27,7 @@
                     <select id="billing_cycle" name="billing_cycle" class="input">@foreach (config('company.billing_cycles') as $k => $cycle)<option value="{{ $k }}" @selected(old('billing_cycle', $contract->billing_cycle ?? 'one_time') === $k)>{{ $cycle['label'] }}</option>@endforeach</select>
                 </x-field>
                 <x-field label="Amount" name="amount" required hint="The whole price for one-off work, or the price per cycle for recurring work."><input id="amount" name="amount" type="number" inputmode="decimal" step="0.01" min="0" value="{{ old('amount', $contract->amount) }}" required class="input"></x-field>
+                <label class="flex items-start gap-2 text-sm sm:col-span-2"><input type="checkbox" name="bill_in_arrears" value="1" @checked(old('bill_in_arrears', $contract->bill_in_arrears)) class="mt-1 size-4 rounded"><span><span class="font-semibold">Invoice at the end of each billing period</span><span class="block text-muted">Recurring contracts only. Each period is invoiced on its last day instead of its first, and nothing is invoiced when the contract is signed. Start the contract on the 1st of a month to bill at the end of each calendar month.</span></span></label>
                 <x-field label="Currency" name="currency" required>
                     <select id="currency" name="currency" class="input">@foreach (config('company.currencies') as $k => $v)<option value="{{ $k }}" @selected(old('currency', $contract->currency) === $k)>{{ $k }} ({{ $v }})</option>@endforeach</select>
                 </x-field>

@@ -282,6 +282,7 @@ class ContractController extends Controller
             'deposit_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'notice_period_days' => ['nullable', 'integer', 'min:0', 'max:365'],
             'auto_renew' => ['nullable', 'boolean'],
+            'bill_in_arrears' => ['nullable', 'boolean'],
             'client_signatory' => ['nullable', 'string', 'max:120'],
             'company_signatory' => ['nullable', 'string', 'max:120'],
             'confidential' => ['nullable', 'boolean'],
@@ -294,6 +295,7 @@ class ContractController extends Controller
         ]);
         unset($data['file'], $data['remove_file'], $data['amendment_reason']);
         $data['auto_renew'] = $request->boolean('auto_renew');
+        $data['bill_in_arrears'] = $request->boolean('bill_in_arrears') && $data['billing_cycle'] !== 'one_time';
         $data['confidential'] = $request->boolean('confidential');
 
         /** @var Contract|null $existing */

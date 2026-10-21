@@ -25,6 +25,7 @@ use Illuminate\Support\Facades\Storage;
  * @property Carbon|null $end_date
  * @property string $amount
  * @property string $billing_cycle
+ * @property bool $bill_in_arrears recurring only: invoice each period on its last day instead of its first
  * @property string $currency
  * @property string $status
  * @property string|null $scope
@@ -55,7 +56,7 @@ use Illuminate\Support\Facades\Storage;
  * @property Carbon|null $reminded_at
  * @property-read Client $client
  */
-#[Fillable(['reference', 'client_id', 'title', 'type', 'start_date', 'end_date', 'amount', 'billing_cycle', 'currency', 'status', 'scope', 'terms', 'file_path', 'standard_terms', 'signed_at', 'signature_path', 'signed_name', 'signed_ip', 'signed_by', 'sent_for_signature_at', 'payment_terms_days', 'notice_period_days', 'auto_renew', 'renewal_of_id', 'client_signatory', 'company_signatory', 'confidential', 'version', 'approved_at', 'approved_by', 'activated_at', 'terminated_at', 'termination_reason', 'reminded_at', 'deposit_percent', 'archived_at'])]
+#[Fillable(['reference', 'client_id', 'title', 'type', 'start_date', 'end_date', 'amount', 'billing_cycle', 'bill_in_arrears', 'currency', 'status', 'scope', 'terms', 'file_path', 'standard_terms', 'signed_at', 'signature_path', 'signed_name', 'signed_ip', 'signed_by', 'sent_for_signature_at', 'payment_terms_days', 'notice_period_days', 'auto_renew', 'renewal_of_id', 'client_signatory', 'company_signatory', 'confidential', 'version', 'approved_at', 'approved_by', 'activated_at', 'terminated_at', 'termination_reason', 'reminded_at', 'deposit_percent', 'archived_at'])]
 class Contract extends Model
 {
     use DateRules, HasReference;
@@ -64,7 +65,7 @@ class Contract extends Model
     public const PAYABLE_STATUSES = ['approved', 'active', 'completed', 'expired'];
 
     /** Mirror the database defaults so a freshly created model behaves like a reloaded one. */
-    protected $attributes = ['status' => 'draft', 'billing_cycle' => 'one_time', 'currency' => 'TTD', 'payment_terms_days' => 14, 'auto_renew' => false, 'confidential' => false, 'version' => 1];
+    protected $attributes = ['status' => 'draft', 'billing_cycle' => 'one_time', 'bill_in_arrears' => false, 'currency' => 'TTD', 'payment_terms_days' => 14, 'auto_renew' => false, 'confidential' => false, 'version' => 1];
 
     protected static function booted(): void
     {
@@ -74,7 +75,7 @@ class Contract extends Model
 
     protected function casts(): array
     {
-        return ['archived_at' => 'datetime', 'start_date' => 'date', 'end_date' => 'date', 'signed_at' => 'datetime', 'sent_for_signature_at' => 'datetime', 'approved_at' => 'datetime', 'activated_at' => 'datetime', 'terminated_at' => 'datetime', 'reminded_at' => 'datetime', 'auto_renew' => 'boolean', 'confidential' => 'boolean', 'standard_terms' => 'array', 'amount' => 'decimal:2'];
+        return ['archived_at' => 'datetime', 'start_date' => 'date', 'end_date' => 'date', 'signed_at' => 'datetime', 'sent_for_signature_at' => 'datetime', 'approved_at' => 'datetime', 'activated_at' => 'datetime', 'terminated_at' => 'datetime', 'reminded_at' => 'datetime', 'auto_renew' => 'boolean', 'bill_in_arrears' => 'boolean', 'confidential' => 'boolean', 'standard_terms' => 'array', 'amount' => 'decimal:2'];
     }
 
     /** @return BelongsTo<Client, $this> */
@@ -132,7 +133,7 @@ class Contract extends Model
     }
 
     /** Material terms that are versioned on amendment. */
-    public const MATERIAL_FIELDS = ['title', 'type', 'start_date', 'end_date', 'amount', 'billing_cycle', 'currency', 'payment_terms_days', 'notice_period_days', 'auto_renew', 'client_signatory', 'company_signatory', 'scope', 'terms'];
+    public const MATERIAL_FIELDS = ['title', 'type', 'start_date', 'end_date', 'amount', 'billing_cycle', 'bill_in_arrears', 'currency', 'payment_terms_days', 'notice_period_days', 'auto_renew', 'client_signatory', 'company_signatory', 'scope', 'terms'];
 
     public function materialSnapshot(): array
     {
@@ -222,6 +223,10 @@ class Contract extends Model
         if (! $next || ! $this->notice_period_days) {
             return null;
         }
+        // Billed in arrears, the next due date is the end of the period; the next cycle starts the day after.
+        if ($this->billsInArrears()) {
+            $next = $next->copy()->addDay();
+        }
 
         return $next->copy()->subDays($this->notice_period_days);
     }
@@ -249,7 +254,7 @@ class Contract extends Model
     {
         $notice = $this->notice_period_days ? $this->notice_period_days.' days\'' : '30 days\'';
         $cycle = $this->isRecurring()
-            ? 'This agreement is billed '.strtolower($this->cycleName()).' at '.money($this->amount, $this->currency).' per '.$this->cycle()['per'].', invoiced in advance.'
+            ? 'This agreement is billed '.strtolower($this->cycleName()).' at '.money($this->amount, $this->currency).' per '.$this->cycle()['per'].', invoiced '.($this->billsInArrears() ? 'at the end of each '.$this->cycle()['per'] : 'in advance').'.'
             : 'This agreement is for a fixed price of '.money($this->amount, $this->currency).'.';
         $map = ['{deposit}' => (string) Setting::get('deposit_percent'), '{payment_days}' => (string) $this->payment_terms_days, '{late_fee}' => rtrim(rtrim(number_format((float) Setting::get('late_fee_monthly_percent'), 2), '0'), '.'), '{notice}' => $notice, '{company}' => config('company.name'), '{short}' => config('company.short'), '{cycle}' => $cycle];
         $out = [];
@@ -257,7 +262,8 @@ class Contract extends Model
             if ($heading === 'Recurring services' && ! $this->isRecurring()) {
                 continue;
             }
-            $out[$heading] = strtr($text, $map);
+            $text = strtr($text, $map);
+            $out[$heading] = $this->billsInArrears() ? str_replace('invoiced in advance at the start of the cycle', 'invoiced at the end of the cycle', $text) : $text;
         }
 
         return $out;
@@ -344,26 +350,54 @@ class Contract extends Model
         return $cycle['days'] ? $this->start_date->copy()->startOfDay()->addDays($n * $cycle['days']) : $this->start_date->copy()->startOfDay()->addMonthsNoOverflow($n * $cycle['months']);
     }
 
-    /** Amount the client should have paid so far: the full price, or cycles elapsed times the cycle price. */
-    public function dueToDate(): float
+    /** Recurring contract invoiced on the last day of each billing period, not the first. */
+    public function billsInArrears(): bool
     {
-        return $this->isRecurring() ? round($this->cyclesElapsed() * (float) $this->amount, 2) : (float) $this->amount;
+        return $this->bill_in_arrears && $this->isRecurring();
     }
 
-    /** When the next cycle starts, or null for one-off and finished contracts. */
+    /** Last day of billing period $n, cut short by the end date. When billed in arrears this is the day it is invoiced. */
+    public function periodEnd(int $n): Carbon
+    {
+        $end = $this->cycleStart($n + 1)->subDay();
+
+        return $this->end_date && $end->gt($this->end_date) ? $this->end_date->copy()->startOfDay() : $end;
+    }
+
+    /** Billing periods that are owed by now: those that have started, or, billed in arrears, those that have ended. */
+    public function cyclesDue(): int
+    {
+        if (! $this->billsInArrears()) {
+            return $this->cyclesElapsed();
+        }
+        $today = now()->startOfDay();
+        $n = 0;
+        while ($n < 10000 && (! $this->end_date || $this->cycleStart($n)->lte($this->end_date)) && $this->periodEnd($n)->lte($today)) {
+            $n++;
+        }
+
+        return $n;
+    }
+
+    /** Amount the client should have paid so far: the full price, or periods owed times the period price. */
+    public function dueToDate(): float
+    {
+        return $this->isRecurring() ? round($this->cyclesDue() * (float) $this->amount, 2) : (float) $this->amount;
+    }
+
+    /** When the next period is invoiced (its first day, or its last day when billed in arrears), or null for one-off and finished contracts. */
     public function nextDueDate(): ?Carbon
     {
         if (! $this->isRecurring()) {
             return null;
         }
-        $cycle = $this->cycle();
-        $elapsed = $this->cyclesElapsed();
-        $next = $this->cycleStart($elapsed);
-        if ($this->end_date && $next->gt($this->end_date)) {
+        $due = $this->cyclesDue();
+        $start = $this->cycleStart($due);
+        if ($this->end_date && $start->gt($this->end_date)) {
             return null;
         }
 
-        return $next;
+        return $this->billsInArrears() ? $this->periodEnd($due) : $start;
     }
 
     /** Cycle price expressed per month, for the recurring-revenue stat. */

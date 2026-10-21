@@ -4,21 +4,27 @@ namespace App\Console\Commands;
 
 use App\Models\Client;
 use App\Models\Contract;
+use App\Models\Invoice;
+use App\Models\Payment;
 use App\Models\Quotation;
+use App\Models\User;
 use App\Services\QuotationWorkflow;
 use App\Support\Audit;
+use App\Support\Reference;
 use Illuminate\Console\Command;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Puts a prepared proposal on a client's profile as a draft quotation and a draft contract that carries the agreed
- * special terms. Nothing is emailed and the client sees neither until you send them. Safe on production.
+ * Puts a prepared proposal on a client's profile: an optional draft quotation, a draft contract carrying the agreed
+ * special terms, and any earlier invoices that were settled outside the portal (with their payments and receipts).
+ * Nothing is emailed and the client sees neither the quotation nor the contract until you send them. Safe on production.
  */
 class DraftProposalCommand extends Command
 {
     protected $signature = 'portal:draft-proposal {proposal : Name of a file in database/proposals, e.g. mbe-cayman} {--client= : Part of the client\'s company name, if different from the proposal file} {--create-client : Create the client when none matches} {--email= : Contact email, needed with --create-client}';
 
-    protected $description = 'Draft a quotation and contract for a client from a proposal file, without sending anything';
+    protected $description = 'Draft a contract (and quotation) for a client from a proposal file, and record earlier paid invoices, without sending anything';
 
     public function handle(QuotationWorkflow $workflow): int
     {
@@ -36,38 +42,133 @@ class DraftProposalCommand extends Command
             return self::FAILURE;
         }
 
-        $q = $proposal['quotation'];
-        if (Quotation::where('client_id', $client->id)->where('title', $q['title'])->exists()) {
-            $this->warn($client->company.' already has a quotation titled "'.$q['title'].'". Nothing was changed.');
+        $title = $proposal['quotation']['title'] ?? $proposal['contract']['title'];
+        $exists = isset($proposal['quotation'])
+            ? Quotation::where('client_id', $client->id)->where('title', $title)->exists()
+            : Contract::where('client_id', $client->id)->where('title', $title)->exists();
+        if ($exists) {
+            $this->warn($client->company.' already has "'.$title.'". Nothing was changed.');
+
+            return self::FAILURE;
+        }
+        if (($problem = $this->historyProblem($client, $proposal['history'] ?? [])) !== null) {
+            $this->error($problem.' Nothing was changed.');
 
             return self::FAILURE;
         }
 
-        [$quotation, $contract] = DB::transaction(function () use ($client, $q, $proposal, $workflow) {
-            $quotation = Quotation::create([
-                'client_id' => $client->id, 'title' => $q['title'], 'issue_date' => now(), 'valid_until' => now()->addDays($q['valid_days']),
-                'currency' => $q['currency'], 'tax_rate' => config('company.tax_rate'), 'status' => 'draft', 'intro' => $q['intro'], 'notes' => $q['notes'],
-                'contract_type' => $q['contract_type'], 'billing_cycle' => $q['billing_cycle'], 'auto_send_contract' => false,
-            ]);
-            $quotation->syncItems($q['items']);
-
-            $contract = $workflow->createContract($quotation->fresh());
-            $c = $proposal['contract'];
-            $contract->forceFill([
-                'start_date' => now()->startOfDay()->addDays($c['start_in_days']), 'notice_period_days' => $c['notice_period_days'],
-                'payment_terms_days' => $c['payment_terms_days'], 'deposit_percent' => $c['deposit_percent'], 'scope' => $c['scope'], 'terms' => $c['terms'],
-            ])->save();
+        [$quotation, $contract, $imported] = DB::transaction(function () use ($client, $proposal, $workflow) {
+            $quotation = isset($proposal['quotation']) ? $this->createQuotation($client, $proposal['quotation']) : null;
+            $contract = $quotation ? $workflow->createContract($quotation->fresh()) : $this->createContract($client, $proposal['contract']);
+            $this->applyContractDetails($contract, $proposal['contract']);
             Audit::log($contract, 'special_terms_added', ['from_proposal' => $this->argument('proposal')]);
 
-            return [$quotation, $contract];
+            return [$quotation, $contract, $this->importHistory($client, $proposal['history'] ?? [])];
         });
 
         $this->info('Drafted for '.$client->company.':');
-        $this->line('  Quotation '.$quotation->reference.' ('.money($quotation->total, $quotation->currency).' per '.$contract->cycle()['per'].'), draft, not sent');
+        $quotation && $this->line('  Quotation '.$quotation->reference.' ('.money($quotation->total, $quotation->currency).' per '.$contract->cycle()['per'].'), draft, not sent');
         $this->line('  Contract  '.$contract->reference.', draft, not sent for signature');
-        $this->line('Review them at '.route('admin.contracts.show', $contract).' and set the real launch date as the contract start before sending.');
+        foreach ($imported as [$invoice, $payment]) {
+            $this->line('  '.$invoice->reference.' '.money($invoice->total, $invoice->currency).' recorded as paid, receipt '.$payment->receipt_number.' (not emailed)');
+        }
+        $this->line('Review it at '.route('admin.contracts.show', $contract).', check the start date, then use Send for signature.');
 
         return self::SUCCESS;
+    }
+
+    /** @param array<string, mixed> $q */
+    private function createQuotation(Client $client, array $q): Quotation
+    {
+        $quotation = Quotation::create([
+            'client_id' => $client->id, 'title' => $q['title'], 'issue_date' => now(), 'valid_until' => now()->addDays($q['valid_days']),
+            'currency' => $q['currency'], 'tax_rate' => config('company.tax_rate'), 'status' => 'draft', 'intro' => $q['intro'], 'notes' => $q['notes'],
+            'contract_type' => $q['contract_type'], 'billing_cycle' => $q['billing_cycle'], 'auto_send_contract' => false,
+        ]);
+        $quotation->syncItems($q['items']);
+
+        return $quotation;
+    }
+
+    /** A draft contract written straight from the proposal, for a client who has already agreed the work and needs no quotation. @param array<string, mixed> $c */
+    private function createContract(Client $client, array $c): Contract
+    {
+        $contract = Contract::create([
+            'client_id' => $client->id, 'title' => $c['title'], 'type' => $c['type'], 'billing_cycle' => $c['billing_cycle'], 'amount' => $c['amount'],
+            'currency' => $c['currency'], 'start_date' => Carbon::parse($c['start_date'])->startOfDay(), 'end_date' => isset($c['end_date']) ? Carbon::parse($c['end_date']) : null,
+            'status' => 'draft', 'client_signatory' => $client->contact_name, 'company_signatory' => config('company.signatory'),
+        ]);
+        Audit::log($contract, 'created', ['status' => 'draft']);
+
+        return $contract;
+    }
+
+    /** @param array<string, mixed> $c */
+    private function applyContractDetails(Contract $contract, array $c): void
+    {
+        $start = isset($c['start_date']) ? Carbon::parse($c['start_date'])->startOfDay() : now()->startOfDay()->addDays($c['start_in_days']);
+        $contract->forceFill([
+            'start_date' => $start, 'notice_period_days' => $c['notice_period_days'], 'payment_terms_days' => $c['payment_terms_days'],
+            'deposit_percent' => $c['deposit_percent'], 'bill_in_arrears' => (bool) ($c['bill_in_arrears'] ?? false), 'scope' => $c['scope'], 'terms' => $c['terms'],
+        ])->save();
+    }
+
+    /**
+     * Earlier invoices must not clash with numbers already in use. One already on this client's profile is simply skipped.
+     *
+     * @param  list<array<string, mixed>>  $history
+     */
+    private function historyProblem(Client $client, array $history): ?string
+    {
+        foreach ($history as $h) {
+            $existing = Invoice::where('reference', $h['reference'])->first();
+            if ($existing && $existing->client_id !== $client->id) {
+                return $h['reference'].' is already used by another client. Raise INVOICE_START_NUMBER in .env above it, then check which invoice should keep that number.';
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Record invoices that were issued and settled outside the portal: the invoice under its original number, one
+     * verified payment, and a receipt. The receipt number is set here so the client is NOT emailed for old payments.
+     *
+     * @param  list<array<string, mixed>>  $history
+     * @return list<array{0: Invoice, 1: Payment}>
+     */
+    private function importHistory(Client $client, array $history): array
+    {
+        $recordedBy = User::where('role', 'admin')->orderBy('id')->first();
+        $done = [];
+        usort($history, fn ($a, $b) => [$a['paid_on'], $a['reference']] <=> [$b['paid_on'], $b['reference']]);
+        foreach ($history as $h) {
+            if (Invoice::where('reference', $h['reference'])->where('client_id', $client->id)->exists()) {
+                $this->warn($h['reference'].' is already on this profile, so it was left as it is.');
+
+                continue;
+            }
+            $issued = Carbon::parse($h['issue_date'])->startOfDay();
+            $invoice = Invoice::create([
+                'reference' => $h['reference'], 'client_id' => $client->id, 'kind' => 'standard', 'title' => $h['title'], 'issue_date' => $issued,
+                'due_date' => Carbon::parse($h['due_date'])->startOfDay(), 'currency' => $h['currency'], 'tax_rate' => 0, 'status' => 'sent', 'sent_at' => $issued, 'notes' => $h['note'] ?? null,
+            ]);
+            $invoice->syncItems($h['items']);
+
+            $paidOn = Carbon::parse($h['paid_on'])->startOfDay();
+            $payment = Payment::create([
+                'client_id' => $client->id, 'invoice_id' => $invoice->id, 'amount' => $invoice->total, 'currency' => $invoice->currency, 'method' => $h['method'],
+                'paid_on' => $paidOn, 'reference' => $h['payment_reference'] ?? null, 'note' => 'Recorded by Code Canvas from the earlier invoice '.$h['reference'].'.',
+                'status' => 'verified', 'submitted_by' => $recordedBy?->id, 'verified_by' => $recordedBy?->id, 'verified_at' => now(),
+                'receipt_number' => Reference::next('receipt', Payment::class, 'receipt_number'),
+            ]);
+            $invoice->refreshPaymentStatus();
+            $invoice->forceFill(['paid_at' => $paidOn])->save();
+            Audit::log($payment, 'recorded', ['amount' => (float) $payment->amount, 'method' => $payment->method, 'imported' => true]);
+            $done[] = [$invoice->fresh(), $payment];
+        }
+
+        return $done;
     }
 
     /** @param array<string, string> $spec */

@@ -134,13 +134,15 @@ class ContractFinance
             return $out;
         }
 
-        $cycle = $c->cycle();
         $noticeEdge = $c->end_date === null && $c->notice_period_days ? $from->copy()->addDays($c->notice_period_days) : null;
         $n = 0;
+        $arrears = $c->billsInArrears();
         while ($n < 10000) { // a weekly cycle over 12 months is ~52 iterations; this only stops a runaway
-            $date = $cycle['days'] ? $c->start_date->copy()->addDays($n * $cycle['days']) : $c->start_date->copy()->addMonthsNoOverflow($n * $cycle['months']);
+            $start = $c->cycleStart($n);
+            // Billed in arrears a period is billed on its last day.
+            $date = $arrears ? $c->periodEnd($n) : $start;
             $n++;
-            if ($date->gt($horizon) || ($c->end_date && $date->gt($c->end_date))) {
+            if ($date->gt($horizon) || ($c->end_date && $start->gt($c->end_date))) {
                 break;
             }
             if ($date->lt($from)) {

@@ -43,6 +43,10 @@ class ContractInvoicing
     {
         return DB::transaction(function () use ($contract) {
             $c = Contract::lockForUpdate()->findOrFail($contract->id);
+            // Billed in arrears, nothing is invoiced at signing: each period is invoiced on its last day by the daily run.
+            if ($c->billsInArrears()) {
+                return null;
+            }
             // Signed, or a renewal (which continues under the agreement already signed).
             $agreed = $c->signed_at !== null || ($c->renewal_of_id !== null && $c->status === 'active');
             if (! $agreed || ! in_array($c->status, ['approved', 'active']) || $c->invoices()->where('status', '!=', 'cancelled')->exists()) {
@@ -105,8 +109,9 @@ class ContractInvoicing
             } else {
                 // Never billed per period (e.g. billed by hand before this existed): start with the current period,
                 // unless an invoice was already issued during it. Earlier periods are never back-billed.
-                $n = max(0, $c->cyclesElapsed() - 1);
-                if ($c->invoices()->where('status', '!=', 'cancelled')->whereDate('issue_date', '>=', $c->cycleStart($n)->toDateString())->exists()) {
+                // Billed in arrears there is nothing to skip: the first period is the first one to invoice.
+                $n = $c->billsInArrears() ? 0 : max(0, $c->cyclesElapsed() - 1);
+                if (! $c->billsInArrears() && $c->invoices()->where('status', '!=', 'cancelled')->whereDate('issue_date', '>=', $c->cycleStart($n)->toDateString())->exists()) {
                     $n++;
                 }
             }
@@ -114,12 +119,10 @@ class ContractInvoicing
             $today = now()->startOfDay();
             while (count($issued) < $max) {
                 $start = $c->cycleStart($n);
-                if ($start->gt($today) || ($c->end_date && $start->gt($c->end_date))) {
+                $end = $c->periodEnd($n);
+                // Billed in advance a period is due on its first day; in arrears, once it has ended.
+                if (($c->billsInArrears() ? $end : $start)->gt($today) || ($c->end_date && $start->gt($c->end_date))) {
                     break;
-                }
-                $end = $c->cycleStart($n + 1)->subDay();
-                if ($c->end_date && $end->gt($c->end_date)) {
-                    $end = $c->end_date->copy();
                 }
                 $line = $c->title.': '.$start->format('j M Y').' – '.$end->format('j M Y');
                 $invoice = $this->create($c, 'cycle', $line, (float) $c->amount, $start);

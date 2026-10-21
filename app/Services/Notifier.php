@@ -136,7 +136,7 @@ class Notifier
     {
         $this->admins(new PortalMail('Signed: contract '.$c->reference, [
             $c->signed_name.' signed '.$c->reference.' for '.$c->client->company.' on '.$c->signed_at->format('j F Y \a\t g:ia').'.',
-            $invoice ? 'The contract is now active. Invoice '.$invoice->reference.' ('.$invoice->title.', '.money($invoice->total, $invoice->currency).') was generated and emailed to the client.' : 'The contract is now active. It already had an invoice, so none was generated.',
+            $invoice ? 'The contract is now active. Invoice '.$invoice->reference.' ('.$invoice->title.', '.money($invoice->total, $invoice->currency).') was generated and emailed to the client.' : ($c->billsInArrears() ? 'The contract is now active. It is billed at the end of each '.$c->cycle()['per'].', so no invoice was generated at signing.' : 'The contract is now active. It already had an invoice, so none was generated.'),
         ], 'Open contract', route('admin.contracts.show', $c)));
 
         $lines = ['Thank you for signing "'.$c->title.'". Your signed copy, with the standard terms as agreed, is available in your portal at any time.'];
