@@ -96,14 +96,17 @@ class SlssProposalTest extends TestCase
         Contract::sole()->delete();
 
         $this->artisan('portal:draft-proposal', ['proposal' => 'slss-maintenance'])->assertSuccessful()
-            ->expectsOutputToContain('INV-000049 was already on this profile and is now attached to the contract as the term from 1 Jun 2026');
+            ->expectsOutputToContain('INV-000049 was already on this profile and is now attached to the contract as the term from 1 Jun 2026')
+            ->expectsOutputToContain('INV-000051 was already on this profile and is now attached to the contract.');
 
         $contract = Contract::sole();
         $this->assertSame([3, 3], [Invoice::count(), Payment::count()], 'nothing is duplicated');
-        $this->assertSame(['INV-000049', 'INV-000063'], $contract->invoices()->reorder()->orderBy('period_start')->pluck('reference')->all());
-        $this->assertSame(['2026-06-01', '2026-10-01'], $contract->invoices()->reorder()->orderBy('period_start')->get()->map(fn ($i) => $i->period_start->toDateString())->all());
-        $this->assertSame(2, $contract->payments()->where('status', 'verified')->count());
-        $this->assertSame(7600.0, $contract->paidAmount(), 'TT$5,000 on INV-000049 (the hosting renewal was on the same invoice) plus TT$2,600 on INV-000063');
+        $this->assertSame(3, $contract->invoices()->count());
+        $terms = $contract->invoices()->where('kind', 'cycle')->reorder()->orderBy('period_start')->get();
+        $this->assertSame(['INV-000049', 'INV-000063'], $terms->pluck('reference')->all());
+        $this->assertSame(['2026-06-01', '2026-10-01'], $terms->map(fn ($i) => $i->period_start->toDateString())->all());
+        $this->assertSame(3, $contract->payments()->where('status', 'verified')->count());
+        $this->assertSame(8350.0, $contract->paidAmount(), 'TT$5,000 on INV-000049 (the hosting renewal was on the same invoice), TT$750 restoration, TT$2,600 on INV-000063');
         $this->assertSame(0.0, $contract->balance());
         $this->assertSame('paid', $contract->paymentState());
     }
@@ -143,12 +146,14 @@ class SlssProposalTest extends TestCase
         $this->artisan('portal:draft-proposal', ['proposal' => 'slss-maintenance'])->assertSuccessful();
 
         $contract = Contract::sole();
-        $terms = $contract->invoices()->reorder()->orderBy('period_start')->get();
+        $this->assertSame(3, $contract->invoices()->count(), 'all three earlier invoices are on the contract');
+        $terms = $contract->invoices()->where('kind', 'cycle')->reorder()->orderBy('period_start')->get();
         $this->assertSame(['INV-000049', 'INV-000063'], $terms->pluck('reference')->all());
-        $this->assertSame(['cycle', 'cycle'], $terms->pluck('kind')->all());
         $this->assertSame(['2026-06-01', '2026-10-01'], $terms->map(fn ($i) => $i->period_start->toDateString())->all());
-        $this->assertNull(Invoice::where('reference', 'INV-000051')->sole()->contract_id, 'the restoration invoice is a one-off, not a term');
-        $this->assertSame(2, $contract->payments()->count());
+        $restoration = Invoice::where('reference', 'INV-000051')->sole();
+        $this->assertSame([$contract->id, 'standard', null], [$restoration->contract_id, $restoration->kind, $restoration->period_start], 'the restoration invoice is on the contract as a one-off, not a term');
+        $this->assertSame(3, $contract->payments()->count());
+        $this->assertSame(8350.0, $contract->paidAmount());
 
         $this->assertSame(5200.0, $contract->dueToDate(), 'two terms have started');
         $this->assertSame(0.0, $contract->balance());
@@ -171,7 +176,7 @@ class SlssProposalTest extends TestCase
 
         $contract->refresh();
         $this->assertSame('active', $contract->status);
-        $this->assertSame(2, $contract->invoices()->count(), 'the two paid terms are the only invoices: nothing new is invoiced when the contract is signed');
+        $this->assertSame(3, $contract->invoices()->count(), 'the three earlier invoices are the only ones: nothing new is invoiced when the contract is signed');
         $this->assertSame('2027-02-01', $contract->nextDueDate()->toDateString());
 
         Carbon::setTestNow('2027-01-31 08:00:00');

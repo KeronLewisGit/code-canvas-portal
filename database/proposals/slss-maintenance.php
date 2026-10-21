@@ -11,8 +11,8 @@
 |   term 1: 1 Jun 2026 – 30 Sep 2026, paid on INV-000049 (1 Jun 2026)
 |   term 2: 1 Oct 2026 – 31 Jan 2027, paid on INV-000063 (9 Oct 2026), four months after the first
 |   term 3: 1 Feb 2027 – 31 May 2027, the first invoice the portal issues itself, on 1 Feb 2027
-| INV-000049 and INV-000063 carry 'period_start', so they are attached to the contract as terms 1 and 2 and the portal
-| neither bills those terms again nor shows them as owed. INV-000051 (restoration) is a one-off and stays off the contract.
+| All three earlier invoices sit on the contract. INV-000049 and INV-000063 carry 'period_start', so they are terms 1 and 2
+| and the portal neither bills those terms again nor shows them as owed. INV-000051 (restoration) is a one-off on the contract.
 |
 | CHECK BEFORE SENDING (these were not in the source documents):
 |  - 'amount': TT$2,600 a term, billed every 4 months, as the school pays it.
@@ -75,7 +75,7 @@ TERMS,
     ],
 
     // Invoices already issued and paid in cash. They go on the profile under their original numbers, with receipts, and nobody is emailed.
-    // 'period_start' marks an invoice as the one that billed a term of the contract above, so that term is never billed again.
+    // All of them go on the contract above. 'period_start' marks the one that billed a term, so that term is never billed again.
     'history' => [
         [
             'reference' => 'INV-000049', 'issue_date' => '2026-06-01', 'due_date' => '2026-06-01', 'currency' => 'TTD', 'method' => 'cash', 'paid_on' => '2026-06-01', 'period_start' => '2026-06-01',
