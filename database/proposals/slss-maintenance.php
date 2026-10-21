@@ -16,7 +16,7 @@ return [
     'client' => ['search' => 'Laventille', 'company' => 'Success Laventille Secondary School', 'contact_name' => 'The Principal', 'website' => 'https://slss.edu.tt'],
 
     'contract' => [
-        'title' => 'Website restoration and maintenance: slss.edu.tt',
+        'title' => 'Website maintenance, 4-month terms: slss.edu.tt',
         'type' => 'maintenance',
         'billing_cycle' => 'four_monthly',
         'bill_in_arrears' => true,
